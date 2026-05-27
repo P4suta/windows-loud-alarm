@@ -4,28 +4,35 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
-
   <ItemGroup>
     <!-- Microsoft.Extensions.* (DI / Hosting / Logging / Configuration / Options) -->
+    <PackageVersion Include="CommunityToolkit.WinUI.Behaviors" Version="8.2.251219" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.8" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
-
     <!-- WinUI 3 / Windows App SDK -->
     <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.1.3" />
-    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.7463" />
-
+    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.8249" />
     <!-- MVVM -->
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-
     <!-- Audio -->
-    <PackageVersion Include="NAudio" Version="2.2.1" />
-
+    <PackageVersion Include="NAudio" Version="2.3.0" />
     <!-- System tray -->
-    <PackageVersion Include="H.NotifyIcon.WinUI" Version="2.3.2" />
-
+    <PackageVersion Include="H.NotifyIcon.WinUI" Version="2.4.1" />
     <!-- Analyzers (applied via Directory.Build.props to every project) -->
-    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.94" />
+    <PackageVersion Include="Meziantou.Analyzer" Version="3.0.96" />
     <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15" />
+    <PackageVersion Include="R3" Version="1.3.1" />
+    <!-- Test stack — xunit.v3 + Microsoft.Testing.Platform runner.
+         v3 ships test assemblies as executables (OutputType=Exe) and
+         Microsoft.Testing.Platform replaces the legacy VSTest host, cutting
+         several seconds off `dotnet test` startup. -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.6.0" />
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="Shouldly" Version="4.3.0" />
+    <!-- Dev tooling (scripts/) — referenced by file-based programs via `#:package`. -->
+    <PackageVersion Include="MSBuild.StructuredLogger" Version="2.3.204" />
   </ItemGroup>
 </Project>

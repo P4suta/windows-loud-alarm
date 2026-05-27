@@ -23,6 +23,26 @@
     <DebugType>portable</DebugType>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
 
+    <!-- NuGet lock file: every project commits a packages.lock.json so restore is
+         reproducible. `just restore` runs with locked-mode and fails on drift; after
+         bumping a version in Directory.Packages.props, re-evaluate via:
+           mise exec ~ dotnet restore Alarm.slnx ~~force-evaluate
+         (the ~ stand-ins are because XML comments forbid the literal dash-dash). -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+
+    <!-- .NET 8+ artifacts layout: every project's bin/, obj/, and publish/ live under a
+         single repo-root artifacts/ tree. `just clean` becomes one rm. -->
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+
+    <!-- Why every project (not just Presentation) declares Windows RIDs:
+         `just publish` does a runtime-specific build (`-r win-x64`). Without RIDs on the
+         library projects, the publish restore would add runtime asset entries to their
+         packages.lock.json on the fly, breaking the next plain `just restore` in
+         locked-mode (NU1004). Declaring the RIDs up front bakes those entries into the
+         lock file once so the file stays stable across normal-vs-publish restores.
+         Test projects are excluded — they neither publish nor need runtime assets. -->
+    <RuntimeIdentifiers Condition="'$(IsTestProject)' != 'true' And '$(RuntimeIdentifiers)' == ''">win-x64;win-arm64</RuntimeIdentifiers>
+
     <!-- Package / assembly metadata -->
     <Company>livec</Company>
     <Product>Alarm</Product>
@@ -30,8 +50,19 @@
 
     <!-- Modernization niceties -->
     <AccelerateBuildsInVisualStudio>true</AccelerateBuildsInVisualStudio>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Persistent Roslyn compiler server (VBCSCompiler). Default-true in .NET 9+
+         but we set it explicitly so a future SDK regression cannot silently
+         disable it and slow csc startup. -->
+    <UseSharedCompilation>true</UseSharedCompilation>
+    <!-- XML doc generation only matters for release/publish artifacts. Skipping it
+         on Debug saves both compile time and "missing doc" analyzer churn. -->
+    <GenerateDocumentationFile Condition="'$(Configuration)' == 'Release'">true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn> <!-- missing XML doc on public API: we only doc the non-obvious -->
+
+    <!-- Surface per-Roslyn-analyzer execution time on Debug builds so `just analyzer-report`
+         and the perf baseline always have data. Release builds (publish) skip this to keep
+         compilation output clean. -->
+    <ReportAnalyzer Condition="'$(Configuration)' == 'Debug'">true</ReportAnalyzer>
   </PropertyGroup>
 
   <ItemGroup>

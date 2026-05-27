@@ -1,6 +1,7 @@
-using Alarm.Application.Abstractions;
 using Alarm.Application.DependencyInjection;
-using Alarm.Application.Orchestration;
+using Alarm.Application.Ports;
+using Alarm.Application.State;
+using Alarm.Application.Store;
 using Alarm.Infrastructure.DependencyInjection;
 using Alarm.Presentation.Composition;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,53 +35,66 @@ public partial class App : Microsoft.UI.Xaml.Application
             Host.Services.GetService<ILogger<App>>()?.LogCritical(e.ExceptionObject as Exception, "Unhandled AppDomain exception");
     }
 
-    protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+    protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
-        var coordinator = Host.Services.GetRequiredService<RingingCoordinator>();
-        coordinator.Attach();
+        await Host.StartAsync().ConfigureAwait(true);
 
-        var trayHost = Host.Services.GetRequiredService<ITrayIconHost>();
-        trayHost.ShowRequested += (_, _) => MainWindow?.Activate();
-        trayHost.ExitRequested += OnExitRequested;
+        var store = Host.Services.GetRequiredService<IAlarmStore>();
+        var presenter = Host.Services.GetRequiredService<IAlarmStatusPresenter>();
+        presenter.ShowRequested += (_, _) => RunOnUiThread(ShowMainWindow);
+        presenter.ExitRequested += (_, _) => RunOnUiThread(() => _ = StopHostAndExitAsync());
 
         MainWindow = Host.Services.GetRequiredService<MainWindow>();
-        MainWindow.Closed += OnMainWindowClosed;
+        MainWindow.Closed += (s, e) => OnMainWindowClosed(store, s, e);
         MainWindow.Activate();
 
-        trayHost.Initialize();
+        presenter.Bind(store.States);
     }
 
-    private void OnExitRequested(object? sender, EventArgs e) => _ = ShutdownGuardedAsync();
-
-    private void OnMainWindowClosed(object sender, Microsoft.UI.Xaml.WindowEventArgs args)
+    private void OnMainWindowClosed(IAlarmStore store, object sender, Microsoft.UI.Xaml.WindowEventArgs args)
     {
         if (_shuttingDown) return;
-        args.Handled = true;
-        MainWindow?.AppWindow?.Hide();
+
+        // タイマー稼働中(Armed/Ringing)は不発防止のためトレイへ最小化、未設定(Idle)時は普通にアプリ終了。
+        if (store.Current is AlarmState.Idle)
+        {
+            args.Handled = true;
+            _ = StopHostAndExitAsync();
+        }
+        else if (sender is MainWindow window)
+        {
+            args.Handled = true;
+            window.AppWindow?.Hide();
+        }
     }
 
-    private async Task ShutdownGuardedAsync()
+    private void ShowMainWindow()
     {
+        if (MainWindow is not MainWindow mw) return;
+        mw.AppWindow?.Show();
+        mw.Activate();
+    }
+
+    private void RunOnUiThread(Action action)
+    {
+        if (MainWindow is { DispatcherQueue: var dq })
+            dq.TryEnqueue(() => action());
+        else
+            action();
+    }
+
+    private async Task StopHostAndExitAsync()
+    {
+        _shuttingDown = true;
         try
         {
-            await ShutdownAsync();
+            await Host.StopAsync().ConfigureAwait(true);
+            Host.Dispose();
         }
         catch (Exception ex)
         {
             Host.Services.GetService<ILogger<App>>()?.LogError(ex, "Shutdown failed");
         }
-    }
-
-    private async Task ShutdownAsync()
-    {
-        _shuttingDown = true;
-        var coordinator = Host.Services.GetRequiredService<RingingCoordinator>();
-        await coordinator.DisposeAsync();
-        var tray = Host.Services.GetRequiredService<ITrayIconHost>();
-        await tray.DisposeAsync();
-        await Host.StopAsync();
-        Host.Dispose();
-        MainWindow?.Close();
         Exit();
     }
 }

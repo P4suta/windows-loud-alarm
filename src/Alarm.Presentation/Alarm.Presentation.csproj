@@ -25,6 +25,22 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Bundle Geist + Geist Mono (OFL 1.1) but subset them at build time to only the
+         glyphs the app actually uses. SubsetFonts target writes obj/SubsetFonts/*.ttf
+         from the originals in Assets/Fonts/ via tools/subset-fonts.py; Link= makes the
+         output land at Assets/Fonts/Geist.ttf so XAML's ms-appx URI keeps working. -->
+    <Content Include="obj\SubsetFonts\Geist.ttf" Link="Assets\Fonts\Geist.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="obj\SubsetFonts\GeistMono.ttf" Link="Assets\Fonts\GeistMono.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\Fonts\OFL.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="SubsetFonts" BeforeTargets="AssignTargetPaths;ResolveAssemblyReferences;PrepareForBuild" Inputs="Assets\Fonts\Geist.ttf;Assets\Fonts\GeistMono.ttf;$(MSBuildThisFileDirectory)..\..\tools\subset-fonts.py" Outputs="obj\SubsetFonts\Geist.ttf;obj\SubsetFonts\GeistMono.ttf">
+    <Message Importance="high" Text="Subsetting Geist fonts to in-use glyphs…" />
+    <Exec Command="mise exec -- uv run --with fonttools python &quot;$(MSBuildThisFileDirectory)..\..\tools\subset-fonts.py&quot;" WorkingDirectory="$(MSBuildThisFileDirectory)..\.." />
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.WinUI.Behaviors" />
     <PackageReference Include="Microsoft.WindowsAppSDK" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
     <PackageReference Include="CommunityToolkit.Mvvm" />

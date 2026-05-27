@@ -1,52 +1,57 @@
-using Alarm.Application.Abstractions;
-using Alarm.Application.Orchestration;
-using Alarm.Application.UseCases.ArmAlarm;
-using Alarm.Application.UseCases.CancelAlarm;
-using Alarm.Application.UseCases.StopRinging;
+using System.Diagnostics;
+using Alarm.Application.Events;
+using Alarm.Application.Ports;
+using Alarm.Application.State;
+using Alarm.Application.Store;
 using Alarm.Domain.Model;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Dispatching;
+using R3;
 
 namespace Alarm.Presentation.ViewModels;
 
+/// <summary>
+/// Projection of <see cref="AlarmState"/> into the bindable surface consumed by MainWindow.xaml.
+/// The ViewModel never holds mutable lifecycle state itself — IsArmed/IsRinging/CountdownDisplay
+/// are all derived from the store stream + clock ticks.
+/// </summary>
 public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
-    private readonly ArmAlarmHandler _arm;
-    private readonly CancelAlarmHandler _cancel;
-    private readonly StopRingingHandler _stop;
+    private readonly IAlarmStore _store;
     private readonly IAudioFilePicker _picker;
-    private readonly ISystemClock _clock;
-    private readonly ITrayIconHost _tray;
-
-    private readonly Timer _clockTimer;
-    private DispatcherQueue? _dispatcher;
-    private AlarmSchedule? _currentSchedule;
+    private readonly IClock _clock;
+    private readonly DispatcherQueue _dispatcher;
+    private readonly IDisposable _stateSub;
+    private readonly IDisposable _tickSub;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AlarmTimeDisplay))]
     public partial TimeSpan AlarmTimeBindable { get; set; }
+
+    public string AlarmTimeDisplay => $"{AlarmTimeBindable:hh\\:mm}";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SoundDisplay))]
     public partial AudioSource Sound { get; set; }
 
     [ObservableProperty]
-    public partial bool IsArmed { get; set; }
+    public partial bool IsArmed { get; private set; }
 
     [ObservableProperty]
-    public partial bool IsRinging { get; set; }
+    public partial bool IsRinging { get; private set; }
 
     [ObservableProperty]
-    public partial string CurrentTimeDisplay { get; set; }
+    public partial string CurrentTimeDisplay { get; private set; }
 
     [ObservableProperty]
-    public partial string CountdownDisplay { get; set; }
+    public partial string CountdownDisplay { get; private set; }
 
     [ObservableProperty]
-    public partial string FireAtDisplay { get; set; }
+    public partial string FireAtDisplay { get; private set; }
 
     [ObservableProperty]
-    public partial string RingingFireAtDisplay { get; set; }
+    public partial string RingingFireAtDisplay { get; private set; }
 
     public string SoundDisplay => Sound switch
     {
@@ -55,21 +60,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _ => "(unknown)",
     };
 
-    public MainViewModel(
-        ArmAlarmHandler arm,
-        CancelAlarmHandler cancel,
-        StopRingingHandler stop,
-        IAudioFilePicker picker,
-        RingingCoordinator coordinator,
-        ISystemClock clock,
-        ITrayIconHost tray)
+    public MainViewModel(IAlarmStore store, IAudioFilePicker picker, IClock clock, IClockTicks ticks)
     {
-        _arm = arm;
-        _cancel = cancel;
-        _stop = stop;
+        _store = store;
         _picker = picker;
         _clock = clock;
-        _tray = tray;
+        _dispatcher = DispatcherQueue.GetForCurrentThread()
+            ?? throw new InvalidOperationException("MainViewModel must be constructed on a UI thread.");
 
         AlarmTimeBindable = TimeSpan.FromHours(7);
         Sound = AudioSource.SystemDefault.Instance;
@@ -78,39 +75,44 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         FireAtDisplay = string.Empty;
         RingingFireAtDisplay = string.Empty;
 
-        coordinator.RingingStarted += (_, _) => RunOnUi(() =>
-        {
-            RingingFireAtDisplay = _currentSchedule is { } s
-                ? $"{s.FireAt:HH:mm}"
-                : string.Empty;
-            IsRinging = true;
-            IsArmed = false;
-            _currentSchedule = null;
-            CountdownDisplay = "0:00";
-            FireAtDisplay = string.Empty;
-            _tray.UpdateTooltip("Alarm ringing — click STOP");
-        });
-        coordinator.RingingEnded += (_, _) => RunOnUi(() =>
-        {
-            IsRinging = false;
-            RingingFireAtDisplay = string.Empty;
-            _tray.UpdateTooltip("Alarm");
-        });
+        _stateSub = store.States
+            .DistinctUntilChanged()
+            .Subscribe(this, static (s, self) => self.RunOnUi(() => self.ApplyState(s)));
 
-        _clockTimer = new Timer(_ =>
-            RunOnUi(() =>
-            {
-                CurrentTimeDisplay = _clock.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                if (IsArmed) UpdateCountdown();
-            }),
-            state: null, dueTime: TimeSpan.Zero, period: TimeSpan.FromSeconds(1));
+        _tickSub = ticks.Stream
+            .Subscribe(this, static (now, self) => self.RunOnUi(() => self.ApplyTick(now)));
     }
 
-    public void AttachDispatcher(DispatcherQueue dispatcher) => _dispatcher = dispatcher;
+    private void ApplyState(AlarmState state)
+    {
+        var (isArmed, isRinging, fireAt, ringingFireAt, countdown) = state switch
+        {
+            AlarmState.Idle =>
+                (false, false, string.Empty, string.Empty, "0:00"),
+            AlarmState.Armed a =>
+                (true, false, $"fires at {a.Schedule.FireAt:HH:mm}", string.Empty,
+                 FormatCountdown(a.Schedule.TimeUntil(_clock.Now))),
+            AlarmState.Ringing r =>
+                (false, true, string.Empty, $"{r.Schedule.FireAt:HH:mm}", "0:00"),
+            _ => throw new UnreachableException(),
+        };
+        IsArmed = isArmed;
+        IsRinging = isRinging;
+        FireAtDisplay = fireAt;
+        RingingFireAtDisplay = ringingFireAt;
+        CountdownDisplay = countdown;
+    }
+
+    private void ApplyTick(DateTimeOffset now)
+    {
+        CurrentTimeDisplay = now.ToString("yyyy-MM-dd HH:mm:ss");
+        if (_store.Current is AlarmState.Armed armed)
+            CountdownDisplay = FormatCountdown(armed.Schedule.TimeUntil(now));
+    }
 
     private void RunOnUi(Action action)
     {
-        if (_dispatcher is null) action();
+        if (_dispatcher.HasThreadAccess) action();
         else _dispatcher.TryEnqueue(() => action());
     }
 
@@ -118,44 +120,26 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private async Task ArmAsync()
     {
         var time = TimeOfDay.FromTimeSpan(AlarmTimeBindable);
-        var schedule = await _arm.HandleAsync(new ArmAlarmCommand(time, Sound), CancellationToken.None);
-        _currentSchedule = schedule;
-        FireAtDisplay = $"fires at {schedule.FireAt:HH:mm}";
-        UpdateCountdown();
-        IsArmed = true;
-        _tray.UpdateTooltip($"Armed: {schedule.FireAt:HH:mm}");
+        await _store.DispatchAsync(new AlarmEvent.ArmRequested(time, Sound)).ConfigureAwait(false);
     }
 
     [RelayCommand]
-    private async Task CancelAsync()
-    {
-        await _cancel.HandleAsync();
-        _currentSchedule = null;
-        CountdownDisplay = "0:00";
-        FireAtDisplay = string.Empty;
-        IsArmed = false;
-        _tray.UpdateTooltip("Alarm");
-    }
+    private async Task CancelAsync() =>
+        await _store.DispatchAsync(AlarmEvent.CancelRequested.Instance).ConfigureAwait(false);
 
     [RelayCommand]
-    private async Task StopRingingAsync() => await _stop.HandleAsync();
+    private async Task StopRingingAsync() =>
+        await _store.DispatchAsync(AlarmEvent.StopRingingRequested.Instance).ConfigureAwait(false);
 
     [RelayCommand]
     private async Task PickFileAsync()
     {
-        var picked = await _picker.PickAsync();
-        if (picked is not null) Sound = picked;
+        var result = await _picker.PickAsync(CancellationToken.None).ConfigureAwait(true);
+        if (result.IsOk) Sound = result.Value;
     }
 
     [RelayCommand]
     private void UseSystemDefault() => Sound = AudioSource.SystemDefault.Instance;
-
-    private void UpdateCountdown()
-    {
-        if (_currentSchedule is null) { CountdownDisplay = "0:00"; return; }
-        var until = _currentSchedule.TimeUntil(_clock.Now);
-        CountdownDisplay = FormatCountdown(until);
-    }
 
     private static string FormatCountdown(TimeSpan ts)
     {
@@ -165,5 +149,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             : $"{ts.Minutes:D2}:{ts.Seconds:D2}";
     }
 
-    public void Dispose() => _clockTimer.Dispose();
+    public void Dispose()
+    {
+        _stateSub.Dispose();
+        _tickSub.Dispose();
+    }
 }

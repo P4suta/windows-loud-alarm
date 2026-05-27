@@ -281,6 +281,27 @@ dotnet_diagnostic.VSTHRD100.severity = suggestion
 dotnet_diagnostic.VSTHRD101.severity = suggestion
 
 # ============================================================
+# Test code — xUnit naming conventions (Method_Scenario_Expected) intentionally use underscores.
+# ============================================================
+[tests/**.cs]
+dotnet_diagnostic.CA1707.severity = none
+# Async fixtures often start background tasks in setup and await them in teardown — a cross-context
+# pattern that VSTHRD003 flags as risky but is the standard idiom for harness lifetimes in xUnit.
+dotnet_diagnostic.VSTHRD003.severity = none
+
+# ============================================================
+# WinUI 3 code-behind — IDE analyzers cannot see XAML-side references
+# ============================================================
+# XAML attaches event handlers via attributes like `Completed="OnIdleExitCompleted"`.
+# IDE0051 flags these as "unused private member" because the analyzer doesn't inspect
+# XAML; IDE0060 flags the mandatory `object sender, EventArgs e` signature parameters
+# as "unused" for the same reason. Both are false positives here — `dotnet format`
+# would otherwise delete the handlers and break the app at runtime.
+[**/*.xaml.cs]
+dotnet_diagnostic.IDE0051.severity = none
+dotnet_diagnostic.IDE0060.severity = none
+
+# ============================================================
 # XAML
 # ============================================================
 [*.xaml]
@@ -297,3 +318,35 @@ dotnet_analyzer_diagnostic.severity = none
 [**/UndockedRegFreeWinRT-AutoInitializer.cs]
 generated_code = true
 dotnet_analyzer_diagnostic.severity = none
+
+# ============================================================
+# scripts/ — dev-time tooling (file-based programs, perf scripts)
+# ============================================================
+# These programs don't ship with the product; they exist to drive `just` recipes
+# and write perf reports. We keep src/ and tests/ under AnalysisMode=All but relax
+# a small set of rules that don't make sense for throwaway console output.
+[scripts/**.cs]
+# Why: CA1303 wants strings resourced for localization. Scripts only ever talk to
+# a developer console; resource files would be pure overhead.
+dotnet_diagnostic.CA1303.severity = none
+# Why: source-generated regexes need a containing partial type — not available in a
+# file-based program (top-level statements). MA0009 is ReDoS-paranoid on inputs we
+# fully control (our own analyzer-report.txt). Both off for scripts/ only.
+dotnet_diagnostic.MA0009.severity = none
+dotnet_diagnostic.MA0110.severity = none
+dotnet_diagnostic.SYSLIB1045.severity = none
+# Why: CA1308 (use ToUpperInvariant) matters for round-trippable identifiers in
+# i18n/security contexts. We use ToLowerInvariant only to generate ASCII filename
+# slugs from a developer-supplied label — no round-trip and no Turkish-locale risk.
+dotnet_diagnostic.CA1308.severity = none
+
+# ============================================================
+# MSBuild BuildCheck — relax untrusted-location error
+# ============================================================
+# BC0301 fires when a project lives under a Windows "untrusted location"
+# (e.g. C:\Users\<you>\Downloads\). It is a developer-environment concern, not a
+# build-quality concern. We surface it as a warning so it stays visible in
+# `just lint-build` output without breaking CI.
+# Applies to all projects in the repo via the root [*.cs] inheritance.
+[*.{cs,csproj,props,targets}]
+dotnet_diagnostic.BC0301.severity = warning

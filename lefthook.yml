@@ -8,9 +8,15 @@ pre-commit:
       glob: "*.{cs,csproj,props,targets,slnx,xaml}"
       run: mise exec -- dotnet format Alarm.slnx --include {staged_files} --verify-no-changes
     typos:
+      # Whitelist textual file types so binaries (.ttf/.otf glyph tables, images,
+      # binlogs) and deletions are filtered out before typos sees them.
+      glob: "*.{cs,csproj,props,targets,slnx,xaml,xml,md,yml,yaml,json,toml,sh,ps1,gitignore,gitattributes,editorconfig}"
       run: mise exec -- typos --no-check-filenames {staged_files}
 
 pre-push:
   commands:
-    build:
-      run: mise exec -- dotnet build Alarm.slnx --no-restore
+    # Run the full test suite (which transitively builds) before letting code leave
+    # the local machine. There is no CI yet, so this hook is the line of defence.
+    # Cost: a few seconds; benefit: push never carries a broken main.
+    test:
+      run: mise exec -- just test

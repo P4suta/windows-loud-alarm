@@ -15,6 +15,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+# Force UTF-8 stdout. CI runners (windows-latest) default to cp1252 which
+# can't encode the "→" / "…" we use in progress messages below.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 from fontTools.subset import main as subset_main
 
 ROOT = Path(__file__).resolve().parent.parent

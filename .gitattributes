@@ -1,0 +1,30 @@
+# Default: treat any text file as text and normalise to LF in the repo,
+# regardless of what core.autocrlf the developer has set locally. CI runs
+# `dotnet format --verify-no-changes` against the .editorconfig setting
+# `end_of_line = lf`, so a CRLF check-in would fail format-check.
+* text=auto eol=lf
+
+# ── Binaries (never touch eol) ────────────────────────────────────────────────
+*.ttf      binary
+*.otf      binary
+*.woff     binary
+*.woff2    binary
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.ico      binary
+*.pdf      binary
+*.binlog   binary
+*.zip      binary
+*.7z       binary
+*.dll      binary
+*.exe      binary
+*.pdb      binary
+*.pri      binary
+*.xbf      binary
+
+# ── Platform-specific scripts (keep CRLF so cmd.exe / pwsh are happy) ─────────
+*.bat      text eol=crlf
+*.cmd      text eol=crlf
+*.ps1      text eol=crlf

@@ -3,6 +3,13 @@
 # live in-repo, not in the global mise config.
 [tools]
 dotnet = "10.0.300"
+# Pin `just` (and the related dev tools) so CI runners have them without depending
+# on the developer's global mise config. Locally these have always been provided
+# by the user-level mise; tracking them per-project here makes `mise install`
+# reproducible on a fresh checkout / on jdx/mise-action@v2.
+just = "1.51.0"
+lefthook = "2.1.6"
+typos = "latest"
 
 # Persistent MSBuild server. Avoids spinning up a fresh msbuild.exe per
 # `dotnet build` / `dotnet test` invocation — a big win for the tight

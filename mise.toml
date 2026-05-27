@@ -10,6 +10,10 @@ dotnet = "10.0.300"
 just = "1.51.0"
 lefthook = "2.1.6"
 typos = "latest"
+# `uv` drives the SubsetFonts target in src/Alarm.Presentation/Alarm.Presentation.csproj
+# (mise exec -- uv run --with fonttools python tools/subset-fonts.py). uv brings its
+# own Python on demand, so we don't need to pin python here separately.
+uv = "latest"
 
 # Persistent MSBuild server. Avoids spinning up a fresh msbuild.exe per
 # `dotnet build` / `dotnet test` invocation — a big win for the tight

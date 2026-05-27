@@ -1,0 +1,42 @@
+<Project>
+  <PropertyGroup>
+    <!-- Language -->
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Strict build: every warning becomes an error so quality drift is caught at CI -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsAsErrors />
+    <WarningsNotAsErrors />
+
+    <!-- Analyzers — turn on everything by default, .editorconfig narrows it down -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>All</AnalysisMode>
+    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+
+    <!-- Deterministic & reproducible builds -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <DebugType>portable</DebugType>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+    <!-- Package / assembly metadata -->
+    <Company>livec</Company>
+    <Product>Alarm</Product>
+    <NeutralLanguage>en</NeutralLanguage>
+
+    <!-- Modernization niceties -->
+    <AccelerateBuildsInVisualStudio>true</AccelerateBuildsInVisualStudio>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn> <!-- missing XML doc on public API: we only doc the non-obvious -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Modern strict analyzers — applied to every project under src/ -->
+    <PackageReference Include="Meziantou.Analyzer" PrivateAssets="all" IncludeAssets="runtime;build;native;contentfiles;analyzers;buildtransitive" />
+    <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" PrivateAssets="all" IncludeAssets="runtime;build;native;contentfiles;analyzers;buildtransitive" />
+  </ItemGroup>
+</Project>

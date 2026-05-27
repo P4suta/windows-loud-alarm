@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Alarm.Application/Alarm.Application.csproj" />
+    <Project Path="src/Alarm.Domain/Alarm.Domain.csproj" />
+    <Project Path="src/Alarm.Infrastructure/Alarm.Infrastructure.csproj" />
+    <Project Path="src/Alarm.Presentation/Alarm.Presentation.csproj" />
+  </Folder>
+</Solution>

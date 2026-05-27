@@ -1,0 +1,16 @@
+# Pre-commit / pre-push hooks. lefthook is provided by mise globally.
+# Hooks run in parallel where safe.
+
+pre-commit:
+  parallel: true
+  commands:
+    format-check:
+      glob: "*.{cs,csproj,props,targets,slnx,xaml}"
+      run: mise exec -- dotnet format Alarm.slnx --include {staged_files} --verify-no-changes
+    typos:
+      run: mise exec -- typos --no-check-filenames {staged_files}
+
+pre-push:
+  commands:
+    build:
+      run: mise exec -- dotnet build Alarm.slnx --no-restore

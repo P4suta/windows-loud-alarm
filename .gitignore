@@ -1,0 +1,28 @@
+# Build outputs
+bin/
+obj/
+out/
+publish/
+
+# Visual Studio / Rider / VS Code
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userprefs
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# NuGet
+*.nupkg
+.nuget/
+
+# JetBrains
+*.DotSettings.user
+
+# Misc
+*.log

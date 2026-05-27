@@ -1,0 +1,160 @@
+<Window
+    x:Class="Alarm.Presentation.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid>
+        <!-- ============ IDLE ============ -->
+        <Grid Padding="32" RowSpacing="20"
+              Visibility="{x:Bind VisibleWhenIdle(ViewModel.IsArmed, ViewModel.IsRinging), Mode=OneWay}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Spacing="4">
+                <TextBlock Text="⏰ Alarm" Style="{StaticResource TitleTextBlockStyle}"/>
+                <TextBlock Text="{x:Bind ViewModel.CurrentTimeDisplay, Mode=OneWay}"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+
+            <StackPanel Grid.Row="1" Spacing="8" Margin="0,12,0,0">
+                <TextBlock Text="WAKE ME AT"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           CharacterSpacing="100"/>
+                <TimePicker SelectedTime="{x:Bind ViewModel.AlarmTimeBindable, Mode=TwoWay}"
+                            ClockIdentifier="24HourClock"
+                            HorizontalAlignment="Stretch"/>
+            </StackPanel>
+
+            <Border Grid.Row="2"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="16">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="SOUND"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               CharacterSpacing="100"/>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                                   Text="{x:Bind ViewModel.SoundDisplay, Mode=OneWay}"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <Button Grid.Column="1" Content="Browse…"
+                                Command="{x:Bind ViewModel.PickFileCommand}"/>
+                        <Button Grid.Column="2" Content="Use default"
+                                Command="{x:Bind ViewModel.UseSystemDefaultCommand}"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="12">
+                <Button Content="⏰  ARM ALARM"
+                        Command="{x:Bind ViewModel.ArmCommand}"
+                        Style="{StaticResource AccentButtonStyle}"
+                        MinHeight="48" Padding="24,10" FontSize="16"/>
+                <Button Content="Minimize to tray"
+                        Click="MinimizeToTray_Click"
+                        MinHeight="48" Padding="20,10"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- ============ ARMED ============ -->
+        <Grid Padding="32"
+              Visibility="{x:Bind VisibleWhenArmed(ViewModel.IsArmed, ViewModel.IsRinging), Mode=OneWay}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Spacing="4">
+                <TextBlock Text="⏰ Armed" Style="{StaticResource SubtitleTextBlockStyle}"/>
+                <TextBlock Text="{x:Bind ViewModel.CurrentTimeDisplay, Mode=OneWay}"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+
+            <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
+                <TextBlock Text="TIME REMAINING"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           CharacterSpacing="200"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Text="{x:Bind ViewModel.CountdownDisplay, Mode=OneWay}"
+                           FontFamily="Cascadia Mono, Consolas, Courier New"
+                           FontSize="120"
+                           FontWeight="Light"
+                           HorizontalAlignment="Center"
+                           TextLineBounds="Tight"/>
+                <TextBlock Text="{x:Bind ViewModel.FireAtDisplay, Mode=OneWay}"
+                           Style="{StaticResource BodyTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal"
+                        Spacing="12" HorizontalAlignment="Center">
+                <Button Content="Cancel"
+                        Command="{x:Bind ViewModel.CancelCommand}"
+                        MinHeight="40" MinWidth="140"/>
+                <Button Content="Minimize to tray"
+                        Click="MinimizeToTray_Click"
+                        MinHeight="40" MinWidth="140"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- ============ RINGING ============ -->
+        <Border Background="{ThemeResource SystemControlAcrylicWindowBrush}"
+                Visibility="{x:Bind VisibleWhenTrue(ViewModel.IsRinging), Mode=OneWay}">
+            <Grid Padding="32">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="1" VerticalAlignment="Center"
+                            HorizontalAlignment="Center" Spacing="20">
+                    <TextBlock Text="ALARM"
+                               FontSize="96" FontWeight="Light"
+                               Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                               HorizontalAlignment="Center"
+                               CharacterSpacing="100"/>
+                    <TextBlock Text="W A K E   U P"
+                               Style="{StaticResource SubtitleTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               CharacterSpacing="400"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="{x:Bind ViewModel.RingingFireAtDisplay, Mode=OneWay}"
+                               FontFamily="Cascadia Mono, Consolas, Courier New"
+                               FontSize="48" FontWeight="Light"
+                               Opacity="0.7"
+                               HorizontalAlignment="Center"
+                               Margin="0,12,0,0"/>
+                    <Button Content="STOP"
+                            FontSize="32" FontWeight="SemiBold"
+                            MinHeight="80" MinWidth="280"
+                            Padding="48,16"
+                            Margin="0,24,0,0"
+                            Style="{StaticResource AccentButtonStyle}"
+                            Command="{x:Bind ViewModel.StopRingingCommand}"
+                            HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

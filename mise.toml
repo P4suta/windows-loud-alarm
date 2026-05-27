@@ -1,0 +1,5 @@
+# Project-local toolchain.
+# Per dotfiles policy (.chezmoidata.toml): project-specific tool versions
+# live in-repo, not in the global mise config.
+[tools]
+dotnet = "10.0.300"

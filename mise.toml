@@ -3,3 +3,14 @@
 # live in-repo, not in the global mise config.
 [tools]
 dotnet = "10.0.300"
+
+# Persistent MSBuild server. Avoids spinning up a fresh msbuild.exe per
+# `dotnet build` / `dotnet test` invocation — a big win for the tight
+# inner loop of `just check` and warm-incremental builds. Affects every
+# dotnet call inside `mise exec --`, which is how justfile recipes run.
+[env]
+# Persistent MSBuild server (see comment above [env]).
+MSBUILDUSESERVER = "1"
+# Microsoft.Testing.Platform telemetry: opt out so test runs don't print the
+# telemetry banner every time and don't phone home.
+TESTINGPLATFORM_TELEMETRY_OPTOUT = "1"

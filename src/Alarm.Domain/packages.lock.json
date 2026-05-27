@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "Meziantou.Analyzer": {
+        "type": "Direct",
+        "requested": "[3.0.96, )",
+        "resolved": "3.0.96",
+        "contentHash": "xcQZqPIwwyWEpGXCAIsELAslk2N5XuzHQPaAAkKr64ev5Wtp9rYQ9xD00N1QBtBEhe705viPUbgiEbubYRUgbA=="
+      },
+      "Microsoft.VisualStudio.Threading.Analyzers": {
+        "type": "Direct",
+        "requested": "[17.14.15, )",
+        "resolved": "17.14.15",
+        "contentHash": "mXQPJsbuUD2ydq4/ffd8h8tSOFCXec+2xJOVNCvXjuMOq/+5EKHq3D2m2MC2+nUaXeFMSt66VS/J4HdKBixgcw=="
+      }
+    },
+    "net10.0/win-arm64": {},
+    "net10.0/win-x64": {}
+  }
+}

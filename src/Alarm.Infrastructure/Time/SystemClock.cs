@@ -1,8 +1,16 @@
-using Alarm.Application.Abstractions;
+using Alarm.Application.Ports;
 
 namespace Alarm.Infrastructure.Time;
 
-internal sealed class SystemClock : ISystemClock
+/// <summary>Wraps <see cref="TimeProvider"/> so tests can substitute a virtual clock.</summary>
+internal sealed class SystemClock : IClock
 {
-    public DateTimeOffset Now => DateTimeOffset.Now;
+    private readonly TimeProvider _time;
+
+    public SystemClock(TimeProvider time)
+    {
+        _time = time;
+    }
+
+    public DateTimeOffset Now => _time.GetLocalNow();
 }

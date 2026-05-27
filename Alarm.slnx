@@ -5,4 +5,8 @@
     <Project Path="src/Alarm.Infrastructure/Alarm.Infrastructure.csproj" />
     <Project Path="src/Alarm.Presentation/Alarm.Presentation.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Alarm.Application.Tests/Alarm.Application.Tests.csproj" />
+    <Project Path="tests/Alarm.Domain.Tests/Alarm.Domain.Tests.csproj" />
+  </Folder>
 </Solution>

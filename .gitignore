@@ -3,6 +3,7 @@ bin/
 obj/
 out/
 publish/
+artifacts/
 
 # Visual Studio / Rider / VS Code
 .vs/
@@ -26,3 +27,6 @@ desktop.ini
 
 # Misc
 *.log
+
+# Claude Code per-user override (team-wide rules belong in .claude/settings.json instead)
+.claude/settings.local.json

@@ -67,7 +67,7 @@
                         Style="{StaticResource AccentButtonStyle}"
                         MinHeight="48" Padding="24,10" FontSize="16"/>
                 <Button Content="Minimize to tray"
-                        Click="MinimizeToTray_Click"
+                        Click="{x:Bind MinimizeToTrayHandler}"
                         MinHeight="48" Padding="20,10"/>
             </StackPanel>
         </Grid>
@@ -112,7 +112,7 @@
                         Command="{x:Bind ViewModel.CancelCommand}"
                         MinHeight="40" MinWidth="140"/>
                 <Button Content="Minimize to tray"
-                        Click="MinimizeToTray_Click"
+                        Click="{x:Bind MinimizeToTrayHandler}"
                         MinHeight="40" MinWidth="140"/>
             </StackPanel>
         </Grid>

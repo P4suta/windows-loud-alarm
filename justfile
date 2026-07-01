@@ -40,6 +40,12 @@ run:
 watch:
     dotnet watch --project src/Alarm.Presentation/Alarm.Presentation.csproj run -p:Platform=x64
 
+# Regenerate the app icon (src/Alarm.Presentation/Assets/Alarm.ico) from Assets/AppIcon.png.
+# The .ico is committed (ApplicationIcon is read early in the build), so only re-run this
+# after changing the source PNG or tools/make-icon.py. uv pulls Pillow on demand.
+icon:
+    uv run --with Pillow python tools/make-icon.py
+
 # ─────────────────────────────────────────────────────────────
 # Tests
 # ─────────────────────────────────────────────────────────────

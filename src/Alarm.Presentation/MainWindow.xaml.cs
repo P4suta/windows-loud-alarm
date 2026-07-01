@@ -22,6 +22,9 @@ public sealed partial class MainWindow : Window
         ViewModel = viewModel;
         InitializeComponent();
         Title = "Alarm";
+        // Title-bar / taskbar icon. The embedded <ApplicationIcon> covers Explorer and
+        // the exe; SetIcon points the live window at the same .ico (shipped as Content).
+        AppWindow?.SetIcon("Assets/Alarm.ico");
 
         IdlePanel.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, OnPanelVisibilityChanged);
         ArmedPanel.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, OnPanelVisibilityChanged);

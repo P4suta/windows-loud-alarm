@@ -13,6 +13,9 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Embeds the icon into Alarm.exe (Explorer / taskbar / Alt-Tab). Generated from
+         Assets/AppIcon.png by tools/make-icon.py (`just icon`) and committed. -->
+    <ApplicationIcon>Assets\Alarm.ico</ApplicationIcon>
     <!-- WindowsAppSDK injects UndockedRegFreeWinRT-AutoInitializer.cs from NuGet during publish;
          that vendored file lacks DefaultDllImportSearchPaths. .editorconfig globs can't reach
          outside the repo, so suppress here. -->
@@ -32,6 +35,9 @@
     <Content Include="obj\SubsetFonts\Geist.ttf" Link="Assets\Fonts\Geist.ttf" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="obj\SubsetFonts\GeistMono.ttf" Link="Assets\Fonts\GeistMono.ttf" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\Fonts\OFL.txt" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Ship the .ico next to the exe so AppWindow.SetIcon can load it at runtime for
+         the title-bar/taskbar icon (MainWindow constructor). -->
+    <Content Include="Assets\Alarm.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <Target Name="SubsetFonts" BeforeTargets="AssignTargetPaths;ResolveAssemblyReferences;PrepareForBuild" Inputs="Assets\Fonts\Geist.ttf;Assets\Fonts\GeistMono.ttf;$(MSBuildThisFileDirectory)..\..\tools\subset-fonts.py" Outputs="obj\SubsetFonts\Geist.ttf;obj\SubsetFonts\GeistMono.ttf">

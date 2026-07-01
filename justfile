@@ -117,6 +117,14 @@ _kill-app-quiet:
 publish: _kill-app-quiet
     dotnet publish src/Alarm.Presentation/Alarm.Presentation.csproj -c Release -r win-x64 -p:Platform=x64 --self-contained true -o publish/win-x64
 
+# Zip the published win-x64 bundle + write SHA256SUMS.txt for a GitHub Release.
+# Standalone (does NOT re-run publish): run `just publish` first, then `just package
+# vX.Y.Z`. Same output names CI's release.yml build job produces, so a local package
+# and a CI package have byte-identical layout. TAG must be a vX.Y.Z version tag.
+# One pwsh line (like stop-app) so $zip/$h persist across the statements.
+package TAG:
+    @if ('{{TAG}}' -notmatch '^v\d+\.\d+\.\d+$') { throw "package requires a vX.Y.Z tag, got '{{TAG}}'" }; if (-not (Test-Path publish/win-x64/Alarm.exe)) { throw "publish/win-x64 not found - run 'just publish' first" }; $zip = 'publish/Alarm-{{TAG}}-win-x64.zip'; Remove-Item -Force -ErrorAction Ignore $zip, publish/SHA256SUMS.txt; Compress-Archive -Path publish/win-x64/* -DestinationPath $zip; $h = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant(); Set-Content -Encoding ascii -Path publish/SHA256SUMS.txt -Value ('{0}  Alarm-{1}-win-x64.zip' -f $h, '{{TAG}}'); Write-Host ('packaged {0} ({1})' -f $zip, $h) -ForegroundColor Green
+
 # Kill a running Alarm.exe if any — required before re-publishing, because the running
 # process holds a lock on publish/win-x64/Alarm.{exe,dll} that would make `dotnet publish` fail.
 stop-app:

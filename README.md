@@ -1,5 +1,8 @@
 # Alarm
 
+[![CI](https://github.com/P4suta/windows-loud-alarm/actions/workflows/ci.yml/badge.svg)](https://github.com/P4suta/windows-loud-alarm/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/P4suta/windows-loud-alarm/badge)](https://scorecard.dev/viewer/?uri=github.com/P4suta/windows-loud-alarm)
+
 A single-window Windows alarm clock built with **.NET 10 + WinUI 3**. Long-press to
 arm, hold to cancel; when the alarm fires the app pins the system master volume to
 100 % and loops a sound until you long-press *STOP*, at which point the captured
@@ -52,6 +55,7 @@ in `.editorconfig`.
 | `just doctor` | Inspect mise/dotnet/just versions when things look wrong |
 | `just clean` | Delete every `bin/` and `obj/` under src/, tests/, publish/ |
 | `just publish` | Produce a self-contained win-x64 binary |
+| `just package vX.Y.Z` | Zip `publish/win-x64` + write `SHA256SUMS.txt` for a release |
 
 ## Architecture in 30 seconds
 
@@ -123,13 +127,27 @@ justfile                 Every supported dev operation
 Alarm.slnx               Solution file (src + tests folders)
 ```
 
+## Releases
+
+Versioning and releases are automated from [Conventional Commits](https://www.conventionalcommits.org/)
+via [release-please](https://github.com/googleapis/release-please): `feat:`/`fix:`
+commits on `main` keep a Release PR open that bumps the version + `CHANGELOG.md`;
+merging it (with the `release: approved` label) cuts the `vX.Y.Z` tag and a GitHub
+Release with the zipped self-contained build + `SHA256SUMS.txt` and keyless Sigstore
+build-provenance/SBOM attestations. The full operator guide — including the one-time
+GitHub App setup that activates the pipeline — is in
+[`docs/RELEASING.md`](docs/RELEASING.md).
+
 ## Contributing to your own fork
 
 If you change behaviour:
 
 1. Add or update a Reducer table-test row before you touch the reducer.
 2. Run `just check` — it must stay green (warning 0 / 52 tests / format clean).
-3. Don't add NuGet packages without justification; the design rejected MediatR,
+3. Use a [Conventional-Commits](https://www.conventionalcommits.org/) PR title
+   (`feat:`, `fix:`, …) — it drives the automated release. See
+   [`CONTRIBUTING.md`](CONTRIBUTING.md).
+4. Don't add NuGet packages without justification; the design rejected MediatR,
    OneOf, and Stateless on purpose. See `docs/ARCHITECTURE.md#libraries-we-said-no-to`.
 
 If you're an AI agent, read [`CLAUDE.md`](CLAUDE.md) first — it has the rules you

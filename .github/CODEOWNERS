@@ -1,0 +1,3 @@
+# Default owner for everything in the repo. Used for review routing; the branch
+# ruleset does not require code-owner review (solo project), so this is advisory.
+* @P4suta

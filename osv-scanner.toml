@@ -1,0 +1,8 @@
+# Accepted-advisory ignore list for osv-scanner (used by sbom-monitor.yml when it
+# re-scans a shipped release's SBOM). Empty by default: every finding is actionable
+# until deliberately recorded here with a reason and, ideally, a review date.
+#
+# Example:
+# [[IgnoredVulns]]
+# id = "GHSA-xxxx-xxxx-xxxx"
+# reason = "not reachable from our code path; upstream fix pending"

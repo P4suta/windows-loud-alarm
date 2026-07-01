@@ -48,6 +48,20 @@
     <Product>Alarm</Product>
     <NeutralLanguage>en</NeutralLanguage>
 
+    <!-- Single source of truth for the app version. release-please's generic
+         extra-files updater keys on the `x-release-please-version` annotation on the
+         line below and rewrites the value on every release — humans never hand-edit
+         it. AssemblyVersion / FileVersion / InformationalVersion all derive from it,
+         so `Alarm.exe`'s file properties always match the shipped tag. See
+         release-please-config.json and docs/RELEASING.md.
+         (app.manifest's assemblyIdentity version="1.0.0.0" is a static Win32
+         side-by-side identity, deliberately NOT wired here: it's a 4-part version the
+         generic updater wouldn't match, and it never needs to move per release.) -->
+    <Version>1.0.0</Version> <!-- x-release-please-version -->
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
+    <InformationalVersion>$(Version)</InformationalVersion>
+
     <!-- Modernization niceties -->
     <AccelerateBuildsInVisualStudio>true</AccelerateBuildsInVisualStudio>
     <!-- Persistent Roslyn compiler server (VBCSCompiler). Default-true in .NET 9+

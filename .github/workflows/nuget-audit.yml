@@ -1,0 +1,49 @@
+# NuGet advisory scan over the committed lockfiles. The scheduled run catches
+# newly-disclosed advisories even when nothing changed; the lockfile-triggered run
+# catches a bump that pulls in a vulnerable package. `dotnet list package
+# --vulnerable` exits 0 regardless of findings, so we parse its output and fail.
+#
+# Runs on windows-latest because the app targets net10.0-windows (WindowsAppSDK is
+# Windows-only, so restore can't resolve on ubuntu).
+name: nuget-audit
+
+on:
+  push:
+    branches: [main]
+    paths: ["**/packages.lock.json", "Directory.Packages.props"]
+  pull_request:
+    paths: ["**/packages.lock.json", "Directory.Packages.props"]
+  schedule:
+    - cron: "33 4 * * 1" # weekly Mon 04:33 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        with:
+          install: true
+      - name: Restore (locked-mode)
+        run: mise exec -- just restore
+      - name: List vulnerable packages (fail on any)
+        shell: bash
+        run: |
+          # --include-transitive so an advisory in a dependency's dependency counts.
+          # dotnet exits 0 whether or not it finds anything, so grep the report:
+          # a clean run prints "has no vulnerable packages", a hit prints
+          # "has the following vulnerable packages".
+          mise exec -- dotnet list Alarm.slnx package --vulnerable --include-transitive 2>&1 | tee audit.txt
+          if grep -q "has the following vulnerable packages" audit.txt; then
+            echo "::error::vulnerable NuGet packages found (see the table above)"
+            exit 1
+          fi
+          echo "No vulnerable NuGet packages."

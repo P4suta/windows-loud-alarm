@@ -1,67 +1,47 @@
 # Perf measurement
 
-This directory holds **build/test performance baselines** for the Alarm repo so we can
-say "X% faster" with numbers instead of vibes.
+Build/test performance baselines for the Alarm repo, so speed claims come with numbers.
 
 ## How to measure
 
 ```pwsh
-just measure
-```
-
-That's it. The command runs `scripts/MeasureBuild.cs` (a .NET 10 file-based program)
-which produces `baseline-<yyyy-MM-dd>.md` in this directory.
-
-Custom run:
-
-```pwsh
+just measure                                      # medians into baseline-<date>.md
 just measure --iterations 7 --label "after lock-file"
 ```
 
-`--label` becomes a filename slug (`baseline-<date>-after-lock-file.md`), so per-step
-runs coexist instead of overwriting each other. Without `--label`, the script writes
-to the canonical `baseline-<date>.md` — use that for the rolled-up summary, and
-labeled runs for the individual before/after pairs.
+`just measure` runs `scripts/MeasureBuild.cs` (a .NET 10 file-based program). `--label`
+becomes a filename slug (`baseline-<date>-after-lock-file.md`) so per-step runs coexist;
+without it the script writes the canonical `baseline-<date>.md`.
+
+Binlog diagnostics:
+
+```pwsh
+just measure-binlog     # → artifacts/perf/build.binlog (+ PerformanceSummary)
+just analyze-binlog     # aggregate target/task/project timings from that binlog
+```
 
 ## What gets measured
 
 Three timed scenarios, median over `--iterations` runs (default 5):
 
-| Scenario           | Pipeline                                     | What it tells you                |
-|--------------------|----------------------------------------------|----------------------------------|
-| `cold-rebuild`     | `just clean` → `just restore` → `just rebuild` | The "I just `git clean -xfd`" cost. NuGet restore + full compile + analyzers. |
-| `warm-incremental` | `just build` (no source changes)             | The "I hit Save" cost. Should be very small if MSBuild incremental works.    |
-| `test-fast`        | `just test-fast` (no implicit build)         | Test execution alone, no rebuild noise.                                       |
+| Scenario           | Pipeline                                       | What it tells you |
+|--------------------|------------------------------------------------|-------------------|
+| `cold-rebuild`     | `just clean` → `just restore` → `just rebuild` | Full `git clean -xfd` cost: restore + full compile + analyzers. |
+| `warm-incremental` | `just build` (no source changes)               | The "I hit Save" cost. Should be sub-second if MSBuild incremental works. |
+| `test-fast`        | `just test-fast` (no implicit build)           | Test execution alone. |
 
-Plus three one-shot diagnostic captures:
+Plus one-shot diagnostic captures under `artifacts/perf/` (gitignored):
 
-- **`artifacts/perf/build.binlog`** — MSBuild binary log. Open with the
-  [MSBuild Binary Log Viewer](https://msbuildlog.com/) to drill into target-level timings
-  and find slow MSBuild tasks.
-- **`artifacts/perf/perf-summary.txt`** — `/clp:PerformanceSummary` (top targets and tasks).
-- **`artifacts/perf/analyzer-report.txt`** — per-Roslyn-analyzer time
-  (`-p:ReportAnalyzer=true`). The summary's "Top analyzers by time" section reads from this.
-- **`artifacts/perf/build-check.txt`** — MSBuild `-check` (BuildCheck) findings.
-  Structural anti-patterns about the build itself (not the C# code).
+- **`build.binlog`** — MSBuild binary log. Open with the
+  [MSBuild Binary Log Viewer](https://msbuildlog.com/) for target-level timings.
+- **`perf-summary.txt`** — `/clp:PerformanceSummary` (top targets and tasks).
+- **`analyzer-report.txt`** — per-Roslyn-analyzer time (`-p:ReportAnalyzer=true`).
+- **`build-check.txt`** — MSBuild `-check` (BuildCheck) structural findings.
 
-`artifacts/` is gitignored. Only `docs/perf/baseline-*.md` is committed.
+## Reading the numbers
 
-## How to read the numbers
-
-- **Median, not mean.** A median over 5 runs ignores one cold/warm outlier on either side.
-- **Same machine, same conditions.** The markdown footer records the host, CPU, OS, and
-  .NET version — different hardware ≠ comparable numbers.
-- **One change at a time.** Run `just measure` (before), apply the change, run again
-  (after), record the diff in the same baseline file under a "Result" section.
-- **Warm-incremental should be sub-second.** If it isn't, something is invalidating the
-  build cache (a `BeforeBuild` target, file timestamps, etc.) — check the binlog.
-
-## Workflow when optimizing
-
-1. `just measure --label "before <change>"` → commit the resulting baseline-md.
-2. Apply the change.
-3. `just check` — make sure nothing is broken.
-4. `just measure --label "after <change>"` → write a new baseline-md.
-5. Append a "Result" section to the *after* file with the % delta vs the *before* file.
-
-Don't delete old baselines. They are the historical record of how the build evolved.
+- Median over 5 runs, not mean.
+- Same machine/conditions only — the markdown footer records host, CPU, OS, .NET version.
+- One change at a time: measure before, apply, measure after, record the diff.
+- `warm-incremental` should be sub-second; if not, something is invalidating the build
+  cache — check the binlog.

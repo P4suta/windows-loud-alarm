@@ -41,11 +41,9 @@ internal sealed class AlarmStore : IAlarmStore, IAsyncDisposable
     /// finished being reduced yet. Tests use this to wait deterministically for the
     /// reducer to drain instead of polling on wall-clock time.
     ///
-    /// Threading note: the counter is updated with Interlocked, but the
-    /// BehaviorSubject's OnNext call is a separate step. If two threads dispatch
-    /// concurrently, the OnNext sequence may not match strict counter order
-    /// (depths {1, 2, 1, 0} are possible instead of {1, 2, 1, 0}). For the
-    /// "wait until 0" use case this is harmless — 0 is reached eventually — but
+    /// Threading note: the counter uses Interlocked but the BehaviorSubject.OnNext
+    /// is a separate step, so concurrent dispatches may emit values out of strict
+    /// counter order. Harmless for "wait until 0" — 0 is reached eventually — but
     /// don't rely on observing every intermediate value.
     /// </summary>
     public Observable<int> Pending => _pending;

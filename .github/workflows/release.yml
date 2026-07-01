@@ -126,7 +126,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dist
-          path: publish/win-x64
+          path: publish/dist/Alarm
           retention-days: 1
           if-no-files-found: error
 
@@ -166,20 +166,29 @@ jobs:
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: dist
-          path: publish/win-x64
+          path: publish/dist/Alarm
 
       # Collect only our own PE files into a flat staging dir for batch_sign. The
       # bundled .NET / WindowsAppSDK runtime DLLs are already Microsoft-signed —
       # re-signing them would waste eSigner quota and claim authorship we don't have.
-      # Our five PEs have unique basenames, so a plain copy (no path->name map needed).
+      # Six first-party PEs now: the root launcher plus five inside app/. The root
+      # Alarm.exe and app/Alarm.exe share a basename, so batch_sign's flat dir needs
+      # a bundle-path -> unique-stage-name map (copy in, sign, copy back to origin).
       - name: Stage first-party binaries for signing
         if: env.HAVE_SIGNING == 'true'
         shell: pwsh
         run: |
-          $targets = 'Alarm.exe', 'Alarm.dll', 'Alarm.Application.dll', 'Alarm.Domain.dll', 'Alarm.Infrastructure.dll'
+          $map = [ordered]@{
+            'Alarm.exe'                    = 'root__Alarm.exe'
+            'app/Alarm.exe'                = 'app__Alarm.exe'
+            'app/Alarm.dll'                = 'app__Alarm.dll'
+            'app/Alarm.Application.dll'    = 'app__Alarm.Application.dll'
+            'app/Alarm.Domain.dll'         = 'app__Alarm.Domain.dll'
+            'app/Alarm.Infrastructure.dll' = 'app__Alarm.Infrastructure.dll'
+          }
           New-Item -ItemType Directory -Force sign-stage | Out-Null
           New-Item -ItemType Directory -Force signed | Out-Null
-          $targets | ForEach-Object { Copy-Item "publish/win-x64/$_" "sign-stage/$_" }
+          foreach ($rel in $map.Keys) { Copy-Item "publish/dist/Alarm/$rel" "sign-stage/$($map[$rel])" }
 
       - name: Sign staged binaries (SSL.com eSigner)
         if: env.HAVE_SIGNING == 'true'
@@ -207,8 +216,15 @@ jobs:
         if: env.HAVE_SIGNING == 'true'
         shell: pwsh
         run: |
-          $targets = 'Alarm.exe', 'Alarm.dll', 'Alarm.Application.dll', 'Alarm.Domain.dll', 'Alarm.Infrastructure.dll'
-          $targets | ForEach-Object { Copy-Item "signed/$_" "publish/win-x64/$_" -Force }
+          $map = [ordered]@{
+            'Alarm.exe'                    = 'root__Alarm.exe'
+            'app/Alarm.exe'                = 'app__Alarm.exe'
+            'app/Alarm.dll'                = 'app__Alarm.dll'
+            'app/Alarm.Application.dll'    = 'app__Alarm.Application.dll'
+            'app/Alarm.Domain.dll'         = 'app__Alarm.Domain.dll'
+            'app/Alarm.Infrastructure.dll' = 'app__Alarm.Infrastructure.dll'
+          }
+          foreach ($rel in $map.Keys) { Copy-Item "signed/$($map[$rel])" "publish/dist/Alarm/$rel" -Force }
 
       # Never ship a "signed" build that is silently unsigned, untimestamped, or
       # signed by the wrong cert. The verify (chain + RFC 3161 timestamp + signer
@@ -219,7 +235,7 @@ jobs:
         if: env.HAVE_SIGNING == 'true'
         uses: ./.github/actions/verify-signatures
         with:
-          bundle-dir: publish/win-x64
+          bundle-dir: publish/dist/Alarm
           signer-subject-contains: ${{ env.SIGNER_SUBJECT_CONTAINS }}
 
       - name: Warn if unsigned
@@ -230,7 +246,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dist-signed
-          path: publish/win-x64
+          path: publish/dist/Alarm
           retention-days: 1
           if-no-files-found: error
 
@@ -265,7 +281,7 @@ jobs:
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: dist-signed
-          path: publish/win-x64
+          path: publish/dist/Alarm
 
       # Gate at the irreversible boundary: a real publish must ship signed binaries.
       # If the signing secrets were absent, the sign job only warned and passed the
@@ -274,7 +290,7 @@ jobs:
       - name: Require the bundle to be signed before publishing
         uses: ./.github/actions/verify-signatures
         with:
-          bundle-dir: publish/win-x64
+          bundle-dir: publish/dist/Alarm
           signer-subject-contains: ${{ env.SIGNER_SUBJECT_CONTAINS }}
 
       - name: Download SBOM

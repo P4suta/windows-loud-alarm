@@ -1,6 +1,5 @@
 root = true
 
-# All files
 [*]
 charset = utf-8
 end_of_line = lf
@@ -19,37 +18,28 @@ indent_size = 2
 [*.{cmd,bat,ps1}]
 end_of_line = crlf
 
-# ============================================================
-# C# code style
-# ============================================================
 [*.cs]
-# Organize usings
 dotnet_sort_system_directives_first = true
 dotnet_separate_import_directive_groups = false
 file_header_template = unset
 
-# 'this.' / 'Me.' qualifiers
 dotnet_style_qualification_for_field      = false:warning
 dotnet_style_qualification_for_property    = false:warning
 dotnet_style_qualification_for_method      = false:warning
 dotnet_style_qualification_for_event       = false:warning
 
-# Language keywords vs BCL types
 dotnet_style_predefined_type_for_locals_parameters_members = true:warning
 dotnet_style_predefined_type_for_member_access             = true:warning
 
-# Parentheses
 dotnet_style_parentheses_in_arithmetic_binary_operators = always_for_clarity:suggestion
 dotnet_style_parentheses_in_relational_binary_operators = always_for_clarity:suggestion
 dotnet_style_parentheses_in_other_binary_operators       = always_for_clarity:suggestion
 dotnet_style_parentheses_in_other_operators              = never_if_unnecessary:silent
 
-# Modifier preferences
 dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
 csharp_preferred_modifier_order = public, private, protected, internal, file, static, extern, new, virtual, abstract, sealed, override, readonly, unsafe, required, volatile, async:warning
 dotnet_style_readonly_field = true:warning
 
-# Expression-level
 dotnet_style_object_initializer                       = true:suggestion
 dotnet_style_collection_initializer                   = true:suggestion
 dotnet_style_explicit_tuple_names                     = true:warning
@@ -63,17 +53,14 @@ dotnet_style_prefer_simplified_boolean_expressions    = true:warning
 dotnet_style_prefer_simplified_interpolation          = true:warning
 dotnet_style_namespace_match_folder                   = true:warning
 
-# Null-checking
 dotnet_style_coalesce_expression       = true:warning
 dotnet_style_null_propagation          = true:warning
 dotnet_style_prefer_is_null_check_over_reference_equality_method = true:warning
 
-# 'var'
 csharp_style_var_for_built_in_types     = true:suggestion
 csharp_style_var_when_type_is_apparent  = true:warning
 csharp_style_var_elsewhere              = true:suggestion
 
-# Expression-bodied members
 csharp_style_expression_bodied_constructors = false:silent
 csharp_style_expression_bodied_methods       = when_on_single_line:suggestion
 csharp_style_expression_bodied_operators     = when_on_single_line:suggestion
@@ -83,7 +70,6 @@ csharp_style_expression_bodied_accessors     = true:suggestion
 csharp_style_expression_bodied_lambdas       = true:suggestion
 csharp_style_expression_bodied_local_functions = true:suggestion
 
-# Pattern matching
 csharp_style_pattern_matching_over_is_with_cast_check = true:warning
 csharp_style_pattern_matching_over_as_with_null_check = true:warning
 csharp_style_prefer_switch_expression                  = true:warning
@@ -91,11 +77,9 @@ csharp_style_prefer_pattern_matching                   = true:warning
 csharp_style_prefer_not_pattern                        = true:warning
 csharp_style_prefer_extended_property_pattern          = true:warning
 
-# Null-checking
 csharp_style_throw_expression           = true:warning
 csharp_style_conditional_delegate_call  = true:warning
 
-# Modern language features
 csharp_prefer_simple_using_statement    = true:warning
 csharp_style_namespace_declarations     = file_scoped:warning
 csharp_style_prefer_method_group_conversion = true:warning
@@ -110,19 +94,13 @@ csharp_style_prefer_range_operator          = true:warning
 csharp_style_implicit_object_creation_when_type_is_apparent = true:warning
 csharp_style_deconstructed_variable_declaration = true:suggestion
 
-# 'using' directive placement
 csharp_using_directive_placement = outside_namespace:warning
 
-# Unused
 csharp_style_unused_value_assignment_preference     = discard_variable:warning
 csharp_style_unused_value_expression_statement_preference = discard_variable:silent
 dotnet_code_quality_unused_parameters               = all:warning
 dotnet_diagnostic.IDE0058.severity = none
 
-# 'new()' / target-typed
-csharp_style_prefer_method_group_conversion = true:warning
-
-# Formatting — newlines
 csharp_new_line_before_open_brace = all
 csharp_new_line_before_else       = true
 csharp_new_line_before_catch      = true
@@ -131,7 +109,6 @@ csharp_new_line_before_members_in_object_initializers = true
 csharp_new_line_before_members_in_anonymous_types     = true
 csharp_new_line_between_query_expression_clauses      = true
 
-# Formatting — indent
 csharp_indent_case_contents       = true
 csharp_indent_switch_labels       = true
 csharp_indent_labels              = one_less_than_current
@@ -139,7 +116,6 @@ csharp_indent_block_contents      = true
 csharp_indent_braces              = false
 csharp_indent_case_contents_when_block = false
 
-# Formatting — spacing
 csharp_space_after_cast                                  = false
 csharp_space_after_keywords_in_control_flow_statements   = true
 csharp_space_between_method_call_parameter_list_parentheses = false
@@ -149,14 +125,10 @@ csharp_space_before_colon_in_inheritance_clause          = true
 csharp_space_after_colon_in_inheritance_clause           = true
 csharp_space_around_binary_operators                     = before_and_after
 
-# Formatting — wrapping
 csharp_preserve_single_line_blocks     = true
 csharp_preserve_single_line_statements = true
 
-# ============================================================
 # Naming
-# ============================================================
-# Interfaces start with 'I'
 dotnet_naming_rule.interfaces_start_with_i.severity = warning
 dotnet_naming_rule.interfaces_start_with_i.symbols  = interface_symbols
 dotnet_naming_rule.interfaces_start_with_i.style    = i_prefix_style
@@ -164,21 +136,19 @@ dotnet_naming_symbols.interface_symbols.applicable_kinds = interface
 dotnet_naming_style.i_prefix_style.required_prefix = I
 dotnet_naming_style.i_prefix_style.capitalization  = pascal_case
 
-# Types are PascalCase
 dotnet_naming_rule.types_pascal.severity = warning
 dotnet_naming_rule.types_pascal.symbols  = type_symbols
 dotnet_naming_rule.types_pascal.style    = pascal_case_style
 dotnet_naming_symbols.type_symbols.applicable_kinds = class,struct,enum,delegate
 dotnet_naming_style.pascal_case_style.capitalization = pascal_case
 
-# Constants are PascalCase
 dotnet_naming_rule.constants_pascal.severity = warning
 dotnet_naming_rule.constants_pascal.symbols  = constant_symbols
 dotnet_naming_rule.constants_pascal.style    = pascal_case_style
 dotnet_naming_symbols.constant_symbols.applicable_kinds = field
 dotnet_naming_symbols.constant_symbols.required_modifiers = const
 
-# Private instance fields are _camelCase (static readonly fields remain PascalCase by convention)
+# Private instance fields _camelCase; static readonly stays PascalCase.
 dotnet_naming_rule.private_fields_underscore.severity = warning
 dotnet_naming_rule.private_fields_underscore.symbols  = private_field_symbols
 dotnet_naming_rule.private_fields_underscore.style    = underscore_camel_case_style
@@ -188,7 +158,6 @@ dotnet_naming_symbols.private_field_symbols.required_modifiers = readonly
 dotnet_naming_style.underscore_camel_case_style.required_prefix = _
 dotnet_naming_style.underscore_camel_case_style.capitalization  = camel_case
 
-# Private static readonly fields are PascalCase
 dotnet_naming_rule.private_static_readonly_pascal.severity = warning
 dotnet_naming_rule.private_static_readonly_pascal.symbols  = private_static_readonly_symbols
 dotnet_naming_rule.private_static_readonly_pascal.style    = pascal_case_style
@@ -196,17 +165,13 @@ dotnet_naming_symbols.private_static_readonly_symbols.applicable_kinds = field
 dotnet_naming_symbols.private_static_readonly_symbols.applicable_accessibilities = private
 dotnet_naming_symbols.private_static_readonly_symbols.required_modifiers = static,readonly
 
-# Parameters and locals are camelCase
 dotnet_naming_rule.parameters_camel.severity = warning
 dotnet_naming_rule.parameters_camel.symbols  = parameter_symbols
 dotnet_naming_rule.parameters_camel.style    = camel_case_style
 dotnet_naming_symbols.parameter_symbols.applicable_kinds = parameter,local
 dotnet_naming_style.camel_case_style.capitalization = camel_case
 
-# ============================================================
-# Analyzer diagnostics — pragmatic strictness for an alarm app
-# ============================================================
-# Treat all categories as informational by default, then raise the ones we care about.
+# Analyzer categories: default to warning, Design to suggestion.
 dotnet_analyzer_diagnostic.category-Style.severity         = warning
 dotnet_analyzer_diagnostic.category-Reliability.severity   = warning
 dotnet_analyzer_diagnostic.category-Performance.severity   = warning
@@ -215,138 +180,72 @@ dotnet_analyzer_diagnostic.category-Usage.severity         = warning
 dotnet_analyzer_diagnostic.category-Naming.severity        = warning
 dotnet_analyzer_diagnostic.category-Design.severity        = suggestion
 
-# Soften a few that conflict with our intentional design
-dotnet_diagnostic.CA1062.severity = none    # public APIs validate parameter nulls (we trust internal callers + use NRT)
-dotnet_diagnostic.CA1063.severity = none    # full IDisposable pattern not required for sealed final classes
+# Rules softened for this app's intentional design (each: why it's off).
+dotnet_diagnostic.CA1062.severity = none    # NRT + trusted internal callers; no null guards on public APIs
+dotnet_diagnostic.CA1063.severity = none    # full IDisposable pattern not needed for sealed final classes
 dotnet_diagnostic.CA1822.severity = suggestion
-dotnet_diagnostic.CA2007.severity = none    # ConfigureAwait(false) is added where it matters; not required everywhere
-dotnet_diagnostic.IDE0290.severity = suggestion # primary constructors are encouraged but not forced everywhere
-
-# Discriminated-union pattern: AudioSource.UserFile / .SystemDefault are intentionally public nested types
-dotnet_diagnostic.CA1034.severity = none
-# Don't force StructLayout on every readonly record struct; the JIT picks a sensible layout already
+dotnet_diagnostic.IDE0290.severity = suggestion
+dotnet_diagnostic.CA1034.severity = none    # AudioSource.UserFile/.SystemDefault are intentional nested types
 dotnet_diagnostic.MA0008.severity = none
-# Single-statement if without braces is acceptable when it improves readability
 dotnet_diagnostic.IDE0011.severity = silent
 csharp_prefer_braces = when_multiline:silent
-# Don't require strict ConfigureAwait(false) outside library code
-dotnet_diagnostic.VSTHRD111.severity = none
-# Don't require .NET Framework-style ConfigureAwait in WinUI dispatcher code
-dotnet_diagnostic.CA2007.severity = none
-# Don't force CancellationToken on every async API (we use it deliberately at boundaries)
+dotnet_diagnostic.VSTHRD111.severity = none # ConfigureAwait not required outside library code
+dotnet_diagnostic.CA2007.severity = none    # stay on the WinUI dispatcher; ConfigureAwait added where it matters
 dotnet_diagnostic.MA0040.severity = suggestion
 dotnet_diagnostic.MA0032.severity = suggestion
-# Default record names are fine for ToString()
-dotnet_diagnostic.MA0011.severity = suggestion
-# IFormatProvider not required for our human-facing strings
-dotnet_diagnostic.MA0011.severity = none
+dotnet_diagnostic.MA0011.severity = none    # IFormatProvider not required for human-facing strings
 dotnet_diagnostic.CA1305.severity = none
 dotnet_diagnostic.CA1304.severity = none
 dotnet_diagnostic.CA1310.severity = none
-# Don't force "Exception" suffix etc. on records used as DTOs
 dotnet_diagnostic.CA1716.severity = none
-
-# LoggerMessage source generator is overkill for a desktop app — keep the structured-log
-# calls themselves; static analyzers can't help here.
-dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1848.severity = none    # LoggerMessage source-gen is overkill for a desktop app
 dotnet_diagnostic.CA1873.severity = none
-
-# Modern record-based events (event Func<T, Task>?, event EventHandler<TRecord>?) intentional
-dotnet_diagnostic.CA1003.severity = none
-
-# Private callback methods don't need "Async" suffix
+dotnet_diagnostic.CA1003.severity = none    # record-based events are intentional
 dotnet_diagnostic.VSTHRD200.severity = suggestion
-
-# Catching Exception is appropriate for "best-effort restore" code paths (volume restoration)
-dotnet_diagnostic.CA1031.severity = suggestion
-
-# We use init-style backing fields with a public getter — that pattern reads cleaner than auto-props here
+dotnet_diagnostic.CA1031.severity = suggestion # catching Exception is fine for best-effort volume restore
 dotnet_diagnostic.IDE0032.severity = suggestion
-
-# CommunityToolkit.Mvvm source-gen creates many usings — don't fail builds on them
-dotnet_diagnostic.IDE0005.severity = suggestion
-
-# CA1812: internal classes resolved purely via DI are not "uninstantiated"
-dotnet_diagnostic.CA1812.severity = none
-
-# CA1515 is a library-design rule — for an application project, `public` types are intentional
-dotnet_diagnostic.CA1515.severity = none
-
-# ConfigureAwait(false) is the wrong default in UI / app code where we want to stay on the dispatcher
-dotnet_diagnostic.MA0004.severity = none
-
-# WinUI 3 dispatcher callbacks must run on the UI thread; async lambdas to void delegates are acceptable
-# in App.xaml.cs event wire-up where the inner method already does its own exception handling.
+dotnet_diagnostic.IDE0005.severity = suggestion # CommunityToolkit.Mvvm source-gen adds usings
+dotnet_diagnostic.CA1812.severity = none    # internal types resolved via DI aren't "uninstantiated"
+dotnet_diagnostic.CA1515.severity = none    # public types are intentional in an app project
+dotnet_diagnostic.MA0004.severity = none    # ConfigureAwait(false) is wrong in UI/app code
 dotnet_diagnostic.VSTHRD100.severity = suggestion
 dotnet_diagnostic.VSTHRD101.severity = suggestion
 
-# ============================================================
-# Test code — xUnit naming conventions (Method_Scenario_Expected) intentionally use underscores.
-# ============================================================
+# Test code — xUnit Method_Scenario_Expected names use underscores.
 [tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none
-# Async fixtures often start background tasks in setup and await them in teardown — a cross-context
-# pattern that VSTHRD003 flags as risky but is the standard idiom for harness lifetimes in xUnit.
-dotnet_diagnostic.VSTHRD003.severity = none
+dotnet_diagnostic.VSTHRD003.severity = none # async fixture start/await across setup+teardown is the xUnit idiom
 
-# ============================================================
-# WinUI 3 code-behind — IDE analyzers cannot see XAML-side references
-# ============================================================
-# XAML attaches event handlers via attributes like `Completed="OnIdleExitCompleted"`.
-# IDE0051 flags these as "unused private member" because the analyzer doesn't inspect
-# XAML; IDE0060 flags the mandatory `object sender, EventArgs e` signature parameters
-# as "unused" for the same reason. Both are false positives here — `dotnet format`
-# would otherwise delete the handlers and break the app at runtime.
+# WinUI code-behind — XAML wires handlers/signatures the IDE can't see, so
+# IDE0051/IDE0060 false-positive (dotnet format would delete them).
 [**/*.xaml.cs]
 dotnet_diagnostic.IDE0051.severity = none
 dotnet_diagnostic.IDE0060.severity = none
 
-# ============================================================
-# XAML
-# ============================================================
 [*.xaml]
 indent_size = 4
 
-# ============================================================
-# Generated files — relax
-# ============================================================
+# Generated files.
 [*.{g,g.i,Designer}.cs]
 generated_code = true
 dotnet_analyzer_diagnostic.severity = none
 
-# WindowsAppSDK injects this auto-initializer during publish; it's vendored code we don't own
+# WindowsAppSDK injects this vendored auto-initializer during publish.
 [**/UndockedRegFreeWinRT-AutoInitializer.cs]
 generated_code = true
 dotnet_analyzer_diagnostic.severity = none
 
-# ============================================================
-# scripts/ — dev-time tooling (file-based programs, perf scripts)
-# ============================================================
-# These programs don't ship with the product; they exist to drive `just` recipes
-# and write perf reports. We keep src/ and tests/ under AnalysisMode=All but relax
-# a small set of rules that don't make sense for throwaway console output.
+# scripts/ — file-based programs that drive `just` recipes; not shipped.
 [scripts/**.cs]
-# Why: CA1303 wants strings resourced for localization. Scripts only ever talk to
-# a developer console; resource files would be pure overhead.
-dotnet_diagnostic.CA1303.severity = none
-# Why: source-generated regexes need a containing partial type — not available in a
-# file-based program (top-level statements). MA0009 is ReDoS-paranoid on inputs we
-# fully control (our own analyzer-report.txt). Both off for scripts/ only.
+dotnet_diagnostic.CA1303.severity = none    # dev console output, no localization
+# Source-generated regex needs a partial type, impossible in top-level statements.
 dotnet_diagnostic.MA0009.severity = none
 dotnet_diagnostic.MA0110.severity = none
 dotnet_diagnostic.SYSLIB1045.severity = none
-# Why: CA1308 (use ToUpperInvariant) matters for round-trippable identifiers in
-# i18n/security contexts. We use ToLowerInvariant only to generate ASCII filename
-# slugs from a developer-supplied label — no round-trip and no Turkish-locale risk.
-dotnet_diagnostic.CA1308.severity = none
+dotnet_diagnostic.CA1308.severity = none    # ToLowerInvariant for ASCII filename slugs only
+dotnet_diagnostic.MA0101.severity = none    # multi-line literals (README) normalized to CRLF at write time
 
-# ============================================================
-# MSBuild BuildCheck — relax untrusted-location error
-# ============================================================
-# BC0301 fires when a project lives under a Windows "untrusted location"
-# (e.g. C:\Users\<you>\Downloads\). It is a developer-environment concern, not a
-# build-quality concern. We surface it as a warning so it stays visible in
-# `just lint-build` output without breaking CI.
-# Applies to all projects in the repo via the root [*.cs] inheritance.
+# BC0301 fires on "untrusted locations" like C:\Users\<you>\Downloads\ — an
+# environment concern, kept a warning so it stays visible without breaking CI.
 [*.{cs,csproj,props,targets}]
 dotnet_diagnostic.BC0301.severity = warning

@@ -1,41 +1,24 @@
-# Project-local toolchain.
-# Per dotfiles policy (.chezmoidata.toml): project-specific tool versions
-# live in-repo, not in the global mise config.
+# Project-local toolchain (per dotfiles policy: project tool versions live in-repo,
+# not in the global mise config). Pinned so CI runners and fresh checkouts don't
+# depend on the developer's global mise.
 [tools]
 dotnet = "10.0.300"
-# Pin `just` (and the related dev tools) so CI runners have them without depending
-# on the developer's global mise config. Locally these have always been provided
-# by the user-level mise; tracking them per-project here makes `mise install`
-# reproducible on a fresh checkout / on jdx/mise-action@v2.
 just = "1.51.0"
 lefthook = "2.1.6"
 typos = "latest"
-# `uv` drives the SubsetFonts target in src/Alarm.Presentation/Alarm.Presentation.csproj
-# (mise exec -- uv run --with fonttools python tools/subset-fonts.py). uv brings its
-# own Python on demand, so we don't need to pin python here separately.
+# Drives the SubsetFonts target (uv brings its own Python on demand).
 uv = "latest"
-# Conventional-Commits linter for the lefthook commit-msg hook (committed.toml) — the
-# local guard that keeps release-please's version + CHANGELOG derivation fed with
-# well-formed commits. cargo backend; the binstall setting below fetches a prebuilt
-# binary instead of compiling from source.
+# Conventional-Commits linter for the commit-msg hook (see committed.toml).
 "cargo:committed" = "1"
-# actionlint lints .github/workflows/*.yml (syntax, ${{ }} expression types,
-# shellcheck over run: blocks). Pinned here so workflow edits can be validated
-# locally before push. github backend fetches the prebuilt release binary.
+# Lints .github/workflows/*.yml; pinned so workflow edits validate locally.
 "github:rhysd/actionlint" = "1.7.12"
 
-# Persistent MSBuild server. Avoids spinning up a fresh msbuild.exe per
-# `dotnet build` / `dotnet test` invocation — a big win for the tight
-# inner loop of `just check` and warm-incremental builds. Affects every
-# dotnet call inside `mise exec --`, which is how justfile recipes run.
 [env]
-# Persistent MSBuild server (see comment above [env]).
+# Persistent MSBuild server — avoids a fresh msbuild.exe per dotnet call.
 MSBUILDUSESERVER = "1"
-# Microsoft.Testing.Platform telemetry: opt out so test runs don't print the
-# telemetry banner every time and don't phone home.
+# Opt out of Microsoft.Testing.Platform telemetry.
 TESTINGPLATFORM_TELEMETRY_OPTOUT = "1"
 
 [settings]
-# Fetch cargo: backend tools (committed) as prebuilt binaries via cargo-binstall
-# rather than `cargo install` from source — no Rust toolchain compile on install.
+# Fetch cargo: backend tools as prebuilt binaries (no Rust compile on install).
 cargo.binstall = true

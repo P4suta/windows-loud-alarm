@@ -55,7 +55,7 @@ public partial class App : Microsoft.UI.Xaml.Application
     {
         if (_shuttingDown) return;
 
-        // タイマー稼働中(Armed/Ringing)は不発防止のためトレイへ最小化、未設定(Idle)時は普通にアプリ終了。
+        // Idle: exit the app. Armed/Ringing: minimize to the tray so the alarm isn't silently lost.
         if (store.Current is AlarmState.Idle)
         {
             args.Handled = true;

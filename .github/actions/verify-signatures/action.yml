@@ -10,7 +10,7 @@ description: >-
 
 inputs:
   bundle-dir:
-    description: "Bundle root holding Alarm.exe and the Alarm*.dll files (no trailing slash)."
+    description: "Bundle root (publish/dist/Alarm): the launcher Alarm.exe plus app/ (no trailing slash)."
     required: true
   signer-subject-contains:
     description: "Substring the signer certificate subject must contain (identity assertion)."
@@ -38,9 +38,10 @@ runs:
             Sort-Object FullName | Select-Object -Last 1
         }
         if (-not $signtool) { throw "signtool.exe not found under the Windows SDK" }
-        # Our own first-party PEs (unique basenames, flat in the bundle). The bundled
-        # .NET / WindowsAppSDK runtime DLLs are Microsoft-signed and out of scope.
-        $targets = 'Alarm.exe', 'Alarm.dll', 'Alarm.Application.dll', 'Alarm.Domain.dll', 'Alarm.Infrastructure.dll'
+        # Our own first-party PEs, as bundle-relative paths: the root launcher plus
+        # the five inside app/. The bundled .NET / WindowsAppSDK runtime DLLs are
+        # Microsoft-signed and out of scope.
+        $targets = 'Alarm.exe', 'app/Alarm.exe', 'app/Alarm.dll', 'app/Alarm.Application.dll', 'app/Alarm.Domain.dll', 'app/Alarm.Infrastructure.dll'
         foreach ($f in $targets) {
           $p = "$env:BUNDLE_DIR/$f"
           & $signtool.FullName verify /pa /tw $p

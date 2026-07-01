@@ -63,7 +63,7 @@
 
             <!-- Rollback = "reverse playback" of the progress storyboard. No From= so the
                  animation starts from wherever the progress storyboard happened to be when
-                 the press was released, and "hyu〜n"s smoothly back to the idle pose. -->
+                 the press was released, and "hyu~n"s smoothly back to the idle pose. -->
             <Storyboard x:Name="ArmRollbackStoryboard">
                 <DoubleAnimation Storyboard.TargetName="ArmFillScale"
                                  Storyboard.TargetProperty="ScaleX"

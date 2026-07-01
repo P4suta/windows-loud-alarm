@@ -10,12 +10,8 @@ volume is restored.
 
 <!-- TODO: capture a 5-second GIF of the long-press → armed → ringing → stop flow -->
 
-## Why this exists
-
-It's a personal alarm app that doubles as a working playground for **Store + Reducer
-+ Effect (Redux-style) architecture in .NET**, with type-level guarantees for the
-critical "always restore the user's system volume" invariant. The full design
-rationale lives in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Personal alarm app with a Store + Reducer + Effect (Redux-style) architecture. Design
+rationale: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Quickstart
 
@@ -35,9 +31,8 @@ just bootstrap
 just run
 ```
 
-That's the whole setup. The pinned .NET SDK version lives in `mise.toml`, the
-package versions live in `Directory.Packages.props`, and analyzer/style rules live
-in `.editorconfig`.
+The pinned .NET SDK version lives in `mise.toml`, package versions in
+`Directory.Packages.props`, analyzer/style rules in `.editorconfig`.
 
 ## Recipes
 
@@ -54,8 +49,8 @@ in `.editorconfig`.
 | `just format` | Apply auto-fixable style fixes |
 | `just doctor` | Inspect mise/dotnet/just versions when things look wrong |
 | `just clean` | Delete every `bin/` and `obj/` under src/, tests/, publish/ |
-| `just publish` | Produce a self-contained win-x64 binary |
-| `just package vX.Y.Z` | Zip `publish/win-x64` + write `SHA256SUMS.txt` for a release |
+| `just publish` | Assemble the downloadable bundle in `publish/dist/Alarm` (launcher + `app/`) |
+| `just package vX.Y.Z` | Zip `publish/dist/Alarm` + write `SHA256SUMS.txt` for a release |
 
 ## Architecture in 30 seconds
 
@@ -72,20 +67,8 @@ in `.editorconfig`.
                                        └── DispatchAsync(AlarmEvent.RingingBegan/Ended/...)
 ```
 
-- Four-layer Clean Architecture: `Domain` (pure) → `Application` (reducer + ports) →
-  `Infrastructure` (NAudio, CoreAudio) → `Presentation` (WinUI 3).
-- `AlarmReducer.Reduce(state, event, now)` is the only place state transitions live.
-  It's a pure function — tested exhaustively by `AlarmReducerTests`.
-- `AlarmState.Ringing` carries its own `VolumeSnapshot`, which makes "we captured a
-  volume but lost it before restore" *unrepresentable* at the type level.
-- `AlarmEffect.BeginRinging` and `EndRinging` are deliberately composite: the
-  interpreter performs capture+max+play (or stop+restore) inside a single method, so
-  a Stop arriving mid-sequence can never orphan a snapshot.
-- `R3.Observable<AlarmState>` is the single stream; both `MainViewModel` (projection
-  into bindable properties) and `TrayStatusPresenter` (tray tooltip) subscribe to it
-  independently — neither knows about the other.
-
-Detailed walkthrough, including which libraries were *not* adopted and why, is in
+Four-layer Clean Architecture: `Domain` (pure) → `Application` (reducer + ports) →
+`Infrastructure` (NAudio, CoreAudio) → `Presentation` (WinUI 3). Details in
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Testing
@@ -102,15 +85,10 @@ just test-app     # Application only (24)
 
 ## Quality gates
 
-Two settings in `Directory.Build.props` shape the whole codebase:
-
-- `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`
-- `<AnalysisMode>All</AnalysisMode>` (every Microsoft + Meziantou analyzer at warning
-  or higher)
-
-In practice: every analyzer warning fails the build. Suppressions are not allowed in
-`.csproj`; they belong in `.editorconfig` with a comment explaining why. Production
-code suppressions and test-only suppressions are kept in clearly separated sections.
+`Directory.Build.props` sets `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` and
+`<AnalysisMode>All</AnalysisMode>`, so every analyzer warning fails the build.
+Suppressions are not allowed in `.csproj`; they belong in `.editorconfig` with a
+comment, split into production and test-only sections.
 
 ## Repo layout
 
@@ -134,26 +112,20 @@ via [release-please](https://github.com/googleapis/release-please): `feat:`/`fix
 commits on `main` keep a Release PR open that bumps the version + `CHANGELOG.md`;
 merging it (with the `release: approved` label) cuts the `vX.Y.Z` tag and a GitHub
 Release with the zipped self-contained build + `SHA256SUMS.txt` and keyless Sigstore
-build-provenance/SBOM attestations. The full operator guide — including the one-time
-GitHub App setup that activates the pipeline — is in
-[`docs/RELEASING.md`](docs/RELEASING.md).
+build-provenance/SBOM attestations. Operator guide: [`docs/RELEASING.md`](docs/RELEASING.md).
 
-## Contributing to your own fork
+**What you download.** Extract the zip and double-click `Alarm.exe`. Layout +
+rationale: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) "Distribution layout". It's
+an unpackaged self-contained build; if it doesn't start, install the
+[Windows App Runtime 2.x](https://learn.microsoft.com/windows/apps/windows-app-sdk/downloads).
 
-If you change behaviour:
+## Contributing
 
-1. Add or update a Reducer table-test row before you touch the reducer.
-2. Run `just check` — it must stay green (warning 0 / 52 tests / format clean).
-3. Use a [Conventional-Commits](https://www.conventionalcommits.org/) PR title
-   (`feat:`, `fix:`, …) — it drives the automated release. See
-   [`CONTRIBUTING.md`](CONTRIBUTING.md).
-4. Don't add NuGet packages without justification; the design rejected MediatR,
-   OneOf, and Stateless on purpose. See `docs/ARCHITECTURE.md#libraries-we-said-no-to`.
-
-If you're an AI agent, read [`CLAUDE.md`](CLAUDE.md) first — it has the rules you
-must follow when modifying this repo.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Run `just check` (must stay green: warning 0
+/ 52 tests / format clean), use a Conventional-Commits PR title, add a Reducer
+table-test row before touching the reducer. AI agents read [`CLAUDE.md`](CLAUDE.md)
+first.
 
 ## License
 
-Personal project, no warranty. Do whatever you want with the code; if it eats your
-breakfast that's on you.
+Personal project, no warranty.

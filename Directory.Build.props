@@ -43,6 +43,14 @@
          Test projects are excluded — they neither publish nor need runtime assets. -->
     <RuntimeIdentifiers Condition="'$(IsTestProject)' != 'true' And '$(RuntimeIdentifiers)' == ''">win-x64;win-arm64</RuntimeIdentifiers>
 
+    <!-- Allow restoring/building these net10.0-windows projects on a non-Windows host.
+         The actual app is only ever built on Windows, but tooling that runs a bare
+         `dotnet restore` on Linux — notably GitHub's Automatic Dependency Submission —
+         otherwise fails with NETSDK1100 ("set EnableWindowsTargeting to true"). This is
+         a no-op for the real Windows build; it just lets the cross-platform restore
+         resolve the Windows targeting packs. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+
     <!-- Package / assembly metadata -->
     <Company>livec</Company>
     <Product>Alarm</Product>

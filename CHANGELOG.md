@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/P4suta/windows-loud-alarm/compare/v0.1.0...v0.2.0) (2026-07-01)
+
+
+### Features
+
+* front the release bundle with a launcher ([#16](https://github.com/P4suta/windows-loud-alarm/issues/16)) ([bfa331f](https://github.com/P4suta/windows-loud-alarm/commit/bfa331f2ef14497b9ee17430098b2441e4ebad1b))
+
 ## 0.1.0 (2026-07-01)
 
 

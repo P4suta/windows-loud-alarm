@@ -30,3 +30,6 @@ desktop.ini
 
 # Claude Code per-user override (team-wide rules belong in .claude/settings.json instead)
 .claude/settings.local.json
+
+# Agent operating manual — kept local, not tracked
+CLAUDE.md

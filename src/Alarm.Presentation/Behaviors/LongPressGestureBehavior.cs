@@ -9,8 +9,8 @@ namespace Alarm.Presentation.Behaviors;
 /// <summary>
 /// Long-press input behavior: starts the progress storyboard on press, fires <see cref="Confirmed"/>
 /// when the press has been held for <see cref="Duration"/>, and starts the rollback storyboard on
-/// early release. The inversion-reveal layered atop the progress bar is now driven by MainWindow
-/// (it binds Clip.Rect.Width to the bar's ScaleX), so this behavior no longer touches Composition.
+/// early release. The inversion-reveal over the progress bar is driven by MainWindow (Clip.Rect.Width
+/// bound to the bar's ScaleX), not by this behavior.
 /// </summary>
 public sealed class LongPressGestureBehavior : Behavior<UIElement>
 {
@@ -100,7 +100,7 @@ public sealed class LongPressGestureBehavior : Behavior<UIElement>
         // and snap ScaleX to its source (0) instantly, which makes the rollback animation
         // appear to do nothing. Letting Progress stay in HoldEnd and just beginning Rollback
         // means Rollback's "To=0" animates from the current Filling value (e.g. 0.45) down
-        // to 0 along the rollback curve — that's the visible "hyu〜n" the user expects.
+        // to 0 along the rollback curve — that's the visible "hyu~n" the user expects.
         RollbackStoryboard?.Begin();
         try { AssociatedObject.ReleasePointerCapture(pointer); }
         catch (Exception) { /* element may already have lost the pointer — non-fatal */ }

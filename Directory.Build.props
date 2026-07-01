@@ -1,94 +1,57 @@
 <Project>
   <PropertyGroup>
-    <!-- Language -->
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
-    <!-- Strict build: every warning becomes an error so quality drift is caught at CI -->
+    <!-- Strict build: every warning (analyzers included) is an error. -->
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <WarningsAsErrors />
     <WarningsNotAsErrors />
-
-    <!-- Analyzers — turn on everything by default, .editorconfig narrows it down -->
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AnalysisLevel>latest</AnalysisLevel>
     <AnalysisMode>All</AnalysisMode>
     <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
 
-    <!-- Deterministic & reproducible builds -->
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
     <DebugType>portable</DebugType>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
 
-    <!-- NuGet lock file: every project commits a packages.lock.json so restore is
-         reproducible. `just restore` runs with locked-mode and fails on drift; after
-         bumping a version in Directory.Packages.props, re-evaluate via:
-           mise exec ~ dotnet restore Alarm.slnx ~~force-evaluate
-         (the ~ stand-ins are because XML comments forbid the literal dash-dash). -->
+    <!-- Reproducible restore. `just restore` runs locked; after a version bump in
+         Directory.Packages.props, re-evaluate with a force-evaluate restore. -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
 
-    <!-- .NET 8+ artifacts layout: every project's bin/, obj/, and publish/ live under a
-         single repo-root artifacts/ tree. `just clean` becomes one rm. -->
+    <!-- .NET 8+ artifacts layout: bin/obj/publish under one repo-root artifacts/ tree. -->
     <UseArtifactsOutput>true</UseArtifactsOutput>
 
-    <!-- Why every project (not just Presentation) declares Windows RIDs:
-         `just publish` does a runtime-specific build (`-r win-x64`). Without RIDs on the
-         library projects, the publish restore would add runtime asset entries to their
-         packages.lock.json on the fly, breaking the next plain `just restore` in
-         locked-mode (NU1004). Declaring the RIDs up front bakes those entries into the
-         lock file once so the file stays stable across normal-vs-publish restores.
-         Test projects are excluded — they neither publish nor need runtime assets. -->
+    <!-- Declare Windows RIDs on every project so `just publish` (-r win-x64) doesn't
+         mutate library lock files and break the next locked restore (NU1004). -->
     <RuntimeIdentifiers Condition="'$(IsTestProject)' != 'true' And '$(RuntimeIdentifiers)' == ''">win-x64;win-arm64</RuntimeIdentifiers>
 
-    <!-- Allow restoring/building these net10.0-windows projects on a non-Windows host.
-         The actual app is only ever built on Windows, but tooling that runs a bare
-         `dotnet restore` on Linux — notably GitHub's Automatic Dependency Submission —
-         otherwise fails with NETSDK1100 ("set EnableWindowsTargeting to true"). This is
-         a no-op for the real Windows build; it just lets the cross-platform restore
-         resolve the Windows targeting packs. -->
+    <!-- Let non-Windows CI (Automatic Dependency Submission) restore the Windows TFM. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
 
-    <!-- Package / assembly metadata -->
     <Company>livec</Company>
     <Product>Alarm</Product>
     <NeutralLanguage>en</NeutralLanguage>
 
-    <!-- Single source of truth for the app version. release-please's generic
-         extra-files updater keys on the `x-release-please-version` annotation on the
-         line below and rewrites the value on every release — humans never hand-edit
-         it. AssemblyVersion / FileVersion / InformationalVersion all derive from it,
-         so `Alarm.exe`'s file properties always match the shipped tag. See
-         release-please-config.json and docs/RELEASING.md.
-         (app.manifest's assemblyIdentity version="0.1.0.0" is a static Win32
-         side-by-side identity, deliberately NOT wired here: it's a 4-part version the
-         generic updater wouldn't match, and it never needs to move per release.) -->
+    <!-- Single source of the app version; release-please rewrites the annotated line.
+         AssemblyVersion/FileVersion/InformationalVersion derive from it. -->
     <Version>0.1.0</Version> <!-- x-release-please-version -->
     <AssemblyVersion>$(Version)</AssemblyVersion>
     <FileVersion>$(Version)</FileVersion>
     <InformationalVersion>$(Version)</InformationalVersion>
 
-    <!-- Modernization niceties -->
     <AccelerateBuildsInVisualStudio>true</AccelerateBuildsInVisualStudio>
-    <!-- Persistent Roslyn compiler server (VBCSCompiler). Default-true in .NET 9+
-         but we set it explicitly so a future SDK regression cannot silently
-         disable it and slow csc startup. -->
     <UseSharedCompilation>true</UseSharedCompilation>
-    <!-- XML doc generation only matters for release/publish artifacts. Skipping it
-         on Debug saves both compile time and "missing doc" analyzer churn. -->
     <GenerateDocumentationFile Condition="'$(Configuration)' == 'Release'">true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CS1591</NoWarn> <!-- missing XML doc on public API: we only doc the non-obvious -->
-
-    <!-- Surface per-Roslyn-analyzer execution time on Debug builds so `just analyzer-report`
-         and the perf baseline always have data. Release builds (publish) skip this to keep
-         compilation output clean. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn> <!-- we only doc the non-obvious -->
     <ReportAnalyzer Condition="'$(Configuration)' == 'Debug'">true</ReportAnalyzer>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Modern strict analyzers — applied to every project under src/ -->
     <PackageReference Include="Meziantou.Analyzer" PrivateAssets="all" IncludeAssets="runtime;build;native;contentfiles;analyzers;buildtransitive" />
     <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" PrivateAssets="all" IncludeAssets="runtime;build;native;contentfiles;analyzers;buildtransitive" />
   </ItemGroup>

@@ -230,16 +230,10 @@ static List<(double Seconds, string Name)> ReadAnalyzerTop(string path, int maxR
     {
         return [];
     }
-    // csc.exe ReportAnalyzer prints, per project, a section like (Japanese locale):
-    //         アナライザー実行の合計時間: 0.303 秒。
-    //         時間 (秒)    %   アナライザー
-    //         0.102   33   Microsoft.VisualStudio.Threading.Analyzers.CSharp, Version=…
-    //         0.096   31      Microsoft.VisualStudio.Threading.Analyzers.CSharpVSTHRD110… (VSTHRD110)
-    //         …
-    //         並列実行が有効になっていないアナライザー:
-    //
-    // English locale uses "Time (s)" and "Analyzers that did not run in parallel".
-    // We sum only the package-level rows (name contains "Version=") across every project.
+    // Sum package-level rows (name contains "Version=") from csc's ReportAnalyzer
+    // table. The regexes below match both the ja-JP ("時間 (秒)" / "並列実行が有効に
+    // なっていない…") and the en ("Time (s)" / "Analyzers that did not run in
+    // parallel") locale headers.
 
     var totals = new Dictionary<string, double>(StringComparer.Ordinal);
     var inTable = false;

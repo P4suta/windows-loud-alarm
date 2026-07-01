@@ -1,5 +1,14 @@
-# Pre-commit / pre-push hooks. lefthook is provided by mise globally.
+# Pre-commit / commit-msg / pre-push hooks. lefthook is provided by mise.
 # Hooks run in parallel where safe.
+
+# Conventional-Commits check on the commit message — the local, earlier signal that
+# keeps release-please's version + CHANGELOG derivation fed with well-formed commits.
+# The authoritative gate for squash-merges is the PR-title check in ci.yml; committed
+# skips fixup!/merge commits so rebases still work. Config lives in committed.toml.
+commit-msg:
+  commands:
+    committed:
+      run: mise exec -- committed --commit-file {1}
 
 pre-commit:
   parallel: true
@@ -16,7 +25,7 @@ pre-commit:
 pre-push:
   commands:
     # Run the full test suite (which transitively builds) before letting code leave
-    # the local machine. There is no CI yet, so this hook is the line of defence.
+    # the local machine — the fast local mirror of CI's quality gate.
     # Cost: a few seconds; benefit: push never carries a broken main.
     test:
       run: mise exec -- just test

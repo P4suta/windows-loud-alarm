@@ -1,0 +1,319 @@
+# Dispatched (by release-please) build → sign → publish, split into three jobs so
+# the signing credentials touch the smallest possible surface:
+#
+#   build   -> assembles the self-contained win-x64 bundle (`just publish`) + a
+#              CycloneDX SBOM. Holds NO secrets, read-only token. Uploads artifacts.
+#   sign    -> downloads the bundle and Authenticode-signs our own five PE files
+#              (Alarm.exe + Alarm*.dll) with SSL.com eSigner via the official
+#              SSLcom/esigner-codesign Action (command: batch_sign, SHA-pinned):
+#              CodeSignTool scans then signs, timestamping (RFC 3161) via SSL.com's
+#              TSA. Only our first-party PEs are staged into a flat dir and signed
+#              (the bundled .NET / WindowsAppSDK DLLs are already Microsoft-signed),
+#              then verified (chain + timestamp + signer). This is the only job that
+#              sees the signing secrets, so it runs in the approval-gated `release`
+#              environment.
+#   publish -> downloads the signed bundle, RE-VERIFIES it is signed (a gate at the
+#              irreversible boundary), zips + checksums it (`just package`), writes
+#              keyless build-provenance + SBOM attestations (Sigstore via the OIDC
+#              GITHUB_TOKEN — no stored secrets) and attaches everything to the
+#              release-please DRAFT, then publishes it. Runs only when publish=true.
+#
+# Signing is gated at publish: a real run (publish=true) re-verifies the bundle is
+# validly signed and FAILS before creating the (immutable) Release if it is not, so
+# a missing/misconfigured secret can never ship an unsigned release unnoticed. A
+# publish=false run still builds + signs + verifies (a signing smoke test) but creates
+# no Release. Setup lives in docs/SIGNING.md.
+#
+# Verify a download with `gh attestation verify <zip> --repo P4suta/windows-loud-alarm`.
+name: release
+
+on:
+  # Dispatched by release-please.yml once it creates the DRAFT release. We trigger on
+  # neither the `release` event (a draft fires none) nor the tag push (dispatch-only
+  # means a stray tag starts nothing). release-please materializes the `vX.Y.Z` tag at
+  # merge (`force-tag-creation`); the publish job attaches assets to that draft and
+  # publishes it, in the asset-before-publish order immutable releases require. Also
+  # runnable by hand for a signing smoke test (publish=false).
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Version tag to release (e.g. v1.0.0), or a branch/ref for a publish=false signing test"
+        required: true
+        type: string
+      sha:
+        description: "Commit SHA to build from (release-please passes the release commit; omit to build from tag_name)"
+        required: false
+        type: string
+      publish:
+        description: "Publish the GitHub Release (false = build+sign+verify only, no release/attestations)"
+        required: false
+        default: true
+        type: boolean
+
+# One release per ref at a time; never cancel a run mid-sign/mid-publish.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Least privilege: read-only at the top level; each job requests only the scopes it
+# needs (Scorecard's Token-Permissions check rewards job-scoped writes).
+permissions:
+  contents: read
+
+env:
+  # The version tag (vX.Y.Z) — reused for zip naming and the release.
+  TAG: ${{ inputs.tag_name }}
+  # Where to get the code: the release commit SHA when release-please dispatches us
+  # (the tag doesn't exist yet, and pinning the SHA avoids main moving during the
+  # approval waits); falls back to tag_name for a manual branch smoke test. All three
+  # jobs check this ref out, and the local verify-signatures action is resolved from
+  # its tree — so env.REF must point at a commit that contains that action.
+  REF: ${{ inputs.sha || inputs.tag_name }}
+  # Our SSL.com certificate's subject — asserted at verify time (both the sign
+  # self-check and the publish gate) so a different (even validly-chained) certificate
+  # cannot pass silently. Adjust to match your ES cert's subject (docs/SIGNING.md).
+  SIGNER_SUBJECT_CONTAINS: "CN=Yasunobu Sakashita"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1) Build the distributable bundle + SBOM. No secrets here.
+  # ---------------------------------------------------------------------------
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      MSBUILDUSESERVER: "1"
+      TESTINGPLATFORM_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      # Fail fast on a publishing run pointed at a non-version ref before the gated
+      # `sign` job burns a reviewer approval + an eSigner signing quota on a misfire.
+      # A publish=false smoke test (e.g. tag_name=main) is deliberately exempt.
+      - name: Validate tag for a publishing run
+        if: ${{ inputs.publish }}
+        shell: bash
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::publishing run requires a vX.Y.Z tag, got '$TAG' (use publish=false for a signing smoke test from a branch)"
+            exit 1
+          fi
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.REF }}
+
+      # Provisions the pinned toolchain (dotnet / just) from mise.toml so the shipped
+      # artifact is built on the exact pins CI and local use.
+      - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        with:
+          install: true
+
+      - name: Build the self-contained bundle
+        run: mise exec -- just publish
+
+      # CycloneDX SBOM of the app project. Generated after the build so the resolved
+      # NuGet graph matches what shipped. Attached + attested by the publish job.
+      - name: Generate SBOM (CycloneDX)
+        shell: bash
+        run: |
+          mise exec -- dotnet tool install --global CycloneDX
+          mise exec -- dotnet CycloneDX src/Alarm.Presentation/Alarm.Presentation.csproj -o publish/sbom -j
+          mv publish/sbom/bom.json publish/sbom/Alarm.cdx.json
+
+      - name: Upload unsigned bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: publish/win-x64
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom
+          path: publish/sbom/Alarm.cdx.json
+          retention-days: 1
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 2) Authenticode-sign our own PEs with SSL.com eSigner. The only job with
+  #    signing secrets -> approval-gated `release` environment.
+  # ---------------------------------------------------------------------------
+  sign:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 30
+    environment: release
+    permissions:
+      contents: read
+    env:
+      # secrets.* cannot be referenced in `if:`; hoist presence to a job-level env
+      # bool, then gate the signing steps on env.HAVE_SIGNING. batch_sign is driven
+      # by the credential_id, so gate on its presence.
+      HAVE_SIGNING: ${{ secrets.ES_USERNAME != '' && secrets.CREDENTIAL_ID != '' }}
+    steps:
+      # The Verify step uses a local composite action, which needs the repo tree
+      # present. Pin to the same release commit the bundle was built from. Runs first,
+      # before the artifact download, so checkout's clean does not wipe the bundle.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.REF }}
+
+      - name: Download unsigned bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: publish/win-x64
+
+      # Collect only our own PE files into a flat staging dir for batch_sign. The
+      # bundled .NET / WindowsAppSDK runtime DLLs are already Microsoft-signed —
+      # re-signing them would waste eSigner quota and claim authorship we don't have.
+      # Our five PEs have unique basenames, so a plain copy (no path->name map needed).
+      - name: Stage first-party binaries for signing
+        if: env.HAVE_SIGNING == 'true'
+        shell: pwsh
+        run: |
+          $targets = 'Alarm.exe', 'Alarm.dll', 'Alarm.Application.dll', 'Alarm.Domain.dll', 'Alarm.Infrastructure.dll'
+          New-Item -ItemType Directory -Force sign-stage | Out-Null
+          New-Item -ItemType Directory -Force signed | Out-Null
+          $targets | ForEach-Object { Copy-Item "publish/win-x64/$_" "sign-stage/$_" }
+
+      - name: Sign staged binaries (SSL.com eSigner)
+        if: env.HAVE_SIGNING == 'true'
+        uses: SSLcom/esigner-codesign@cf5f6c1d38ad10f47e3ed9aca873f429b1a8d85b # v1.3.2
+        with:
+          command: batch_sign
+          username: ${{ secrets.ES_USERNAME }}
+          password: ${{ secrets.ES_PASSWORD }}
+          credential_id: ${{ secrets.CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
+          dir_path: ${{ github.workspace }}\sign-stage
+          # Write signed files to a dedicated dir. batch_sign does NOT honor
+          # `override` (the Action never forwards -override), so without an explicit
+          # output_path the signed files land elsewhere and copy-back would grab the
+          # unsigned originals (-> Verify "NotSigned").
+          output_path: ${{ github.workspace }}\signed
+          environment_name: PROD
+          # Our SSL.com account requires a pre-signing malware scan; with this off,
+          # batch_sign sends only hashes and SSL.com rejects with "hash needs to be
+          # scanned first". true makes the Action scan the files inline before signing.
+          # CodeSignTool timestamps via SSL.com's TSA (Verify enforces a timestamp).
+          malware_block: "true"
+
+      - name: Copy signed binaries back into the bundle
+        if: env.HAVE_SIGNING == 'true'
+        shell: pwsh
+        run: |
+          $targets = 'Alarm.exe', 'Alarm.dll', 'Alarm.Application.dll', 'Alarm.Domain.dll', 'Alarm.Infrastructure.dll'
+          $targets | ForEach-Object { Copy-Item "signed/$_" "publish/win-x64/$_" -Force }
+
+      # Never ship a "signed" build that is silently unsigned, untimestamped, or
+      # signed by the wrong cert. The verify (chain + RFC 3161 timestamp + signer
+      # subject) lives in a composite action shared with the publish gate so the two
+      # can't drift — so a publish=false smoke test runs the publish gate's identical
+      # check here.
+      - name: Verify signatures
+        if: env.HAVE_SIGNING == 'true'
+        uses: ./.github/actions/verify-signatures
+        with:
+          bundle-dir: publish/win-x64
+          signer-subject-contains: ${{ env.SIGNER_SUBJECT_CONTAINS }}
+
+      - name: Warn if unsigned
+        if: env.HAVE_SIGNING != 'true'
+        run: echo "::warning::Signing secrets absent - the bundle is UNSIGNED (a real publish will FAIL at the publish gate). See docs/SIGNING.md to enable."
+
+      - name: Upload signed bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist-signed
+          path: publish/win-x64
+          retention-days: 1
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 3) Zip + checksum the signed bundle, attest, and attach to the Release.
+  # ---------------------------------------------------------------------------
+  publish:
+    needs: sign
+    if: ${{ inputs.publish }}
+    runs-on: windows-latest
+    timeout-minutes: 20
+    # Second approval gate on the irreversible step: the GitHub Release is immutable,
+    # so publishing requires its own explicit human approval in the `release`
+    # environment, distinct from the `sign` approval ("sign this?" vs "release this to
+    # the world?"). Defence in depth against an accidental release.
+    environment: release
+    permissions:
+      contents: write # create the GitHub Release + upload assets
+      id-token: write # OIDC token for keyless Sigstore signing (attestations)
+      attestations: write # write build-provenance + SBOM attestations
+    steps:
+      # The repo is needed for `just package` + the verify composite action.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.REF }}
+
+      - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        with:
+          install: true
+
+      - name: Download signed bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist-signed
+          path: publish/win-x64
+
+      # Gate at the irreversible boundary: a real publish must ship signed binaries.
+      # If the signing secrets were absent, the sign job only warned and passed the
+      # bundle through UNSIGNED — fail HERE, before any attestation or the immutable
+      # Release, rather than publishing unsigned. Same composite verify the sign job runs.
+      - name: Require the bundle to be signed before publishing
+        uses: ./.github/actions/verify-signatures
+        with:
+          bundle-dir: publish/win-x64
+          signer-subject-contains: ${{ env.SIGNER_SUBJECT_CONTAINS }}
+
+      - name: Download SBOM
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: sbom
+          path: publish/sbom
+
+      # Zip + SHA256SUMS the (now-signed) bundle. Logic + output names live in the
+      # justfile (`just package`) so CI and a local package have byte-identical layout.
+      - name: Package (zip + checksums)
+        run: mise exec -- just package ${{ env.TAG }}
+
+      # Build provenance + SBOM attestations for the published artifacts. Keyless via
+      # the workflow's OIDC token (no stored secrets).
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: |
+            publish/Alarm-*-win-x64.zip
+            publish/SHA256SUMS.txt
+
+      - name: Attest SBOM
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        with:
+          subject-path: publish/Alarm-*-win-x64.zip
+          sbom-path: publish/sbom/Alarm.cdx.json
+
+      # release-please created this release as a DRAFT (config "draft": true) — no
+      # assets, no git tag yet. softprops uploads the files and THEN publishes the
+      # draft (the order immutable releases require: assets before publish). Publishing
+      # is what creates the vX.Y.Z tag. `draft` is intentionally omitted so the action
+      # publishes after upload; the notes are release-please's, so we don't regenerate.
+      - name: Publish the draft release with the signed assets
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        with:
+          tag_name: ${{ env.TAG }}
+          files: |
+            publish/Alarm-*-win-x64.zip
+            publish/SHA256SUMS.txt
+            publish/sbom/Alarm.cdx.json

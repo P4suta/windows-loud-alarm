@@ -1,0 +1,31 @@
+version: 2
+updates:
+  # NuGet. The repo uses Central Package Management (Directory.Packages.props at the
+  # root), so a single "/" entry covers every project — Dependabot reads the central
+  # version file and opens one grouped PR. `deps` prefix matches committed.toml's
+  # allowed types (and release-please's changelog sections).
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      dotnet:
+        patterns: ["*"]
+    labels: [dependencies]
+    commit-message:
+      prefix: deps
+
+  # The workflow actions themselves — keeps the SHA pins current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: [dependencies]
+    commit-message:
+      prefix: ci

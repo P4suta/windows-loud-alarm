@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    # labeled/unlabeled are added so the label-driven `release-gate` re-evaluates
+    # when `release: approved` is added/removed — without them, a label change
+    # leaves the gate's result stale. The heavy windows job skips on these label
+    # events (see its `if`), so the extra cost is only the cheap gate jobs.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 # Cancel an in-flight run of the same ref (push or PR) when a new commit lands.
 concurrency:
@@ -17,6 +22,10 @@ permissions:
 jobs:
   build-test-publish:
     name: build + test + publish (windows-latest)
+    # Code didn't change on a label event (the release-gate re-run path), so skip
+    # this 30-min tier; ci-required treats the skip as success. On push, the action
+    # is empty, so this runs.
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     runs-on: windows-latest
     timeout-minutes: 30
 
@@ -29,17 +38,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
 
       - name: Set up mise (pins dotnet 10.0.300 + just)
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
         with:
-          experimental: true
+          install: true
 
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/packages.lock.json') }}
@@ -68,11 +77,11 @@ jobs:
 
       - name: MSBuild BuildCheck
         run: mise exec -- just lint-build
-        continue-on-error: true  # BC0301 / advisories shouldn't fail the run
+        continue-on-error: true # BC0301 / advisories shouldn't fail the run
 
       - name: Upload perf artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: perf-${{ github.run_number }}
           path: artifacts/perf/
@@ -83,8 +92,68 @@ jobs:
         run: mise exec -- just publish
 
       - name: Upload publish artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: alarm-win-x64-${{ github.run_number }}
           path: publish/win-x64/
           if-no-files-found: error
+
+  # Conventional-Commits gate on the PR title — authoritative for squash-merges,
+  # where the PR title becomes the commit subject release-please parses. The local
+  # committed hook (committed.toml) is the earlier signal; this is the enforced gate.
+  pr-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Defence in depth (docs/RELEASING.md): a release-please Release PR (labelled
+  # "autorelease: pending") cannot be merged until a human deliberately adds the
+  # "release: approved" label — so cutting a real release is an explicit act, not
+  # an accidental merge. Every non-release PR passes unconditionally.
+  release-gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    steps:
+      - name: Require an explicit approval label on a Release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          labels=$(gh pr view "$PR" --repo "$REPO" --json labels -q '.labels[].name')
+          if echo "$labels" | grep -qx "autorelease: pending"; then
+            if echo "$labels" | grep -qx "release: approved"; then
+              echo "Release PR carries 'release: approved' — gate open."
+            else
+              echo "::error::This is a release PR. Add the 'release: approved' label to allow merge (deliberate release; docs/RELEASING.md)."
+              exit 1
+            fi
+          else
+            echo "Not a release PR — gate passes."
+          fi
+
+  # Single required status check. Transitively enforces the jobs above and treats
+  # `skipped` (e.g. the windows tier on a label event) as success — avoids the
+  # "Expected — Waiting" deadlock. PR-only: it gates PR merges, so there is nothing
+  # to gate on a push to main, and a cancelled post-merge push run would otherwise
+  # make gate-results (which counts `cancelled` as failure) paint main spuriously red.
+  ci-required:
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    needs: [build-test-publish, pr-title, release-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: gate on needed job results
+        uses: ./.github/actions/gate-results
+        with:
+          results: ${{ join(needs.*.result, ',') }}

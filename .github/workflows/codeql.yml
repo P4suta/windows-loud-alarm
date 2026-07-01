@@ -1,0 +1,98 @@
+# Static analysis for the C# app, the build scripts, and the workflows themselves.
+# This is the advanced CodeQL config; the repo's default CodeQL setup must be OFF
+# (they can't coexist) — the languages below cover the same set default scanned
+# (csharp / python / actions).
+#
+# Three independent analyses:
+#   - csharp (analyze): build-mode manual because the WinUI app builds through the
+#     mise-pinned SDK + a font-subsetting MSBuild target; we drive the exact `just`
+#     recipes CI uses and trace that build.
+#   - python (analyze-python): build-mode none, cheap ubuntu. Covers the build helper
+#     scripts (tools/*.py).
+#   - actions (analyze-actions): build-mode none, cheap ubuntu. Continuously
+#     re-checks workflow GITHUB_TOKEN permissions so the missing-permissions class
+#     can't silently regress (and closes stale alerts once code complies).
+#
+# The `analyze` job name is a required status check (see .github/rulesets/).
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "23 4 * * 1" # Mondays
+
+# Least privilege: read-only at the top level; each job requests only the
+# security-events write it needs to upload SARIF.
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      security-events: write # upload CodeQL SARIF results
+      contents: read # checkout
+    env:
+      MSBUILDUSESERVER: "1"
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        with:
+          install: true
+
+      - name: Restore (locked-mode)
+        run: mise exec -- just restore
+
+      - uses: github/codeql-action/init@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          languages: csharp
+          build-mode: manual
+
+      - name: Build for CodeQL
+        run: mise exec -- just build
+
+      - uses: github/codeql-action/analyze@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          category: "/language:csharp"
+
+  # Scans the build helper scripts (tools/*.py). build-mode none, cheap ubuntu.
+  analyze-python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      security-events: write # upload CodeQL SARIF results
+      contents: read # checkout
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: github/codeql-action/init@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          languages: python
+          build-mode: none
+      - uses: github/codeql-action/analyze@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          category: "/language:python"
+
+  # Scans the workflow YAML itself (GITHUB_TOKEN permissions, untrusted-input,
+  # etc.). build-mode none needs no toolchain, so it runs on cheap ubuntu.
+  analyze-actions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      security-events: write # upload CodeQL SARIF results
+      contents: read # checkout
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: github/codeql-action/init@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          languages: actions
+          build-mode: none
+      - uses: github/codeql-action/analyze@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          category: "/language:actions"

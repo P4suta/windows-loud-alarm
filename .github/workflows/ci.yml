@@ -111,6 +111,24 @@ jobs:
       - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Keep in lockstep with committed.toml's allowed_types so the local
+          # commit-msg hook and this gate agree. `deps` is included so Dependabot's
+          # `deps:`-prefixed PR titles (see .github/dependabot.yml) pass — amannn's
+          # default set omits ci/build/deps/revert.
+          types: |
+            feat
+            fix
+            perf
+            docs
+            refactor
+            test
+            chore
+            ci
+            build
+            deps
+            style
+            revert
 
   # Defence in depth (docs/RELEASING.md): a release-please Release PR (labelled
   # "autorelease: pending") cannot be merged until a human deliberately adds the

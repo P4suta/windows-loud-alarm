@@ -109,13 +109,12 @@ gh api --method POST repos/P4suta/windows-loud-alarm/rulesets \
 
 ## First release
 
-The first release is pinned to **v1.0.0** (matching `app.manifest`'s existing
-`1.0.0.0` identity) via `"release-as": "1.0.0"` in `release-please-config.json`, with
-the manifest seeded at `0.0.0` and `bootstrap-sha` at the adoption commit so only new
-commits accrue.
+The first release is pinned to **v0.1.0** via `"release-as": "0.1.0"` in
+`release-please-config.json`, with the manifest seeded at `0.0.0` and `bootstrap-sha`
+at the adoption commit so only new commits accrue.
 
-**After the first release ships, remove `"release-as": "1.0.0"` from
-`release-please-config.json`** — otherwise release-please keeps proposing 1.0.0 forever.
+**After the first release ships, remove `"release-as": "0.1.0"` from
+`release-please-config.json`** — otherwise release-please keeps proposing 0.1.0 forever.
 From then on the version is derived purely from Conventional Commits.
 
 Checklist for the first Release PR:

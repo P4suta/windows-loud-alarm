@@ -54,10 +54,10 @@
          it. AssemblyVersion / FileVersion / InformationalVersion all derive from it,
          so `Alarm.exe`'s file properties always match the shipped tag. See
          release-please-config.json and docs/RELEASING.md.
-         (app.manifest's assemblyIdentity version="1.0.0.0" is a static Win32
+         (app.manifest's assemblyIdentity version="0.1.0.0" is a static Win32
          side-by-side identity, deliberately NOT wired here: it's a 4-part version the
          generic updater wouldn't match, and it never needs to move per release.) -->
-    <Version>1.0.0</Version> <!-- x-release-please-version -->
+    <Version>0.1.0</Version> <!-- x-release-please-version -->
     <AssemblyVersion>$(Version)</AssemblyVersion>
     <FileVersion>$(Version)</FileVersion>
     <InformationalVersion>$(Version)</InformationalVersion>

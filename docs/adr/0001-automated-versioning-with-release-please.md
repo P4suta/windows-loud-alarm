@@ -61,7 +61,7 @@ Action as the sibling repo), hard-gated so a real publish can't ship unsigned. S
 - A layered safety-gate suite (`release-gate`, `no-automerge-on-release-pr`,
   `release-label-guard`, two-environment approvals, dispatch-only release) makes cutting
   a release a deliberate act.
-- The first release is pinned to **v1.0.0** via `release-as`, which must be removed
+- The first release is pinned to **v0.1.0** via `release-as`, which must be removed
   after it ships (see `docs/RELEASING.md`).
 
 ## Re-examination triggers

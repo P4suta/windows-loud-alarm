@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- The single file a user double-clicks at the bundle root. It spawns
+         app\Alarm.exe (the real WinUI apphost) and exits, so the runtime files
+         can stay isolated under app\ while the user still sees one obvious exe.
+         See docs/ARCHITECTURE.md "Distribution layout". -->
+    <OutputType>WinExe</OutputType>
+    <!-- Ship as Alarm.exe: the launcher IS the app's face at the bundle root. -->
+    <AssemblyName>Alarm</AssemblyName>
+    <RootNamespace>Alarm.Launcher</RootNamespace>
+    <!-- Plain net10.0 (no WinUI/Windows SDK): the launcher only starts a process
+         and shows a message box on failure. Keeps the Native AOT image tiny. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <Platforms>x64;ARM64</Platforms>
+    <!-- Native AOT: a ~1-2 MB dependency-free native exe, instant start, no temp
+         extraction. Requires the MSVC C++ toolchain on the build host (CI's
+         windows runners have it; locally see CLAUDE.md "Toolchain"). AOT only
+         engages on `dotnet publish -r <rid>`; a plain Debug build stays managed. -->
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Same icon as the app so the root Alarm.exe shows the app face in Explorer. -->
+    <ApplicationIcon>..\Alarm.Presentation\Assets\Alarm.ico</ApplicationIcon>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- The [LibraryImport] source generator emits unsafe marshalling code
+         (SYSLIB1062). Same as Alarm.Presentation. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+</Project>

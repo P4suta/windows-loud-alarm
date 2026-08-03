@@ -4,9 +4,9 @@
     "net10.0": {
       "Meziantou.Analyzer": {
         "type": "Direct",
-        "requested": "[3.0.117, )",
-        "resolved": "3.0.117",
-        "contentHash": "22L/6jjjhTwOpGqN+3A4EMCWc8Kc0dAd49zINAlxjLYDxERnD1qPKDkE9Z6cZPjiOs32J9nsieyya1FO+kXHCw=="
+        "requested": "[3.0.138, )",
+        "resolved": "3.0.138",
+        "contentHash": "o97FZRHWIpMeg/Mzb5Whhcqe1/95SxZLn1bkG+P8T4ijiAY6eoe9BYTYyINBVzkyl5zehQ7NB6bz1DnEgqVZmQ=="
       },
       "Microsoft.VisualStudio.Threading.Analyzers": {
         "type": "Direct",

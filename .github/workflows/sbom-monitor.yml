@@ -27,7 +27,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       # Checkout is only for osv-scanner.toml (the accepted-advisory ignore list).
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Locate latest release + download its SBOM
         id: fetch
@@ -50,7 +50,7 @@ jobs:
 
       - name: Install osv-scanner
         if: steps.fetch.outputs.scan == 'true'
-        uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
+        uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # v2.85.10
         with:
           tool: osv-scanner@2.3.6
 

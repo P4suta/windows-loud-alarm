@@ -1,10 +1,8 @@
 # Re-scans the SBOM of the LATEST published release against today's OSV.dev DB.
 #
-# This is the one supply-chain check that looks at *what we already shipped*, not
-# the current source tree: nuget-audit / Dependabot scan HEAD, so a CVE disclosed
-# *after* a release goes unnoticed for the binary users already have. The release's
-# CycloneDX SBOM (frozen, attested) is exactly the manifest needed to answer "is the
-# shipped v1.0 affected?".
+# This is the one supply-chain check that looks at *what we already shipped*, not the current source tree.
+# NuGet audit and GitHub dependency alerts inspect the current graph, so a CVE disclosed *after* a release can otherwise go unnoticed for users of that binary.
+# The release's frozen, attested CycloneDX SBOM is exactly the manifest needed to answer "is the shipped v1.0 affected?".
 #
 # Dormant until the first release: with no release (or no SBOM assets) the job logs
 # a notice and exits 0, then activates automatically once a release ships.
@@ -85,7 +83,7 @@ jobs:
             {
               echo "## 🛡️ Vulnerability in a shipped release ($TAG)"
               echo
-              echo "osv-scanner found known vulnerabilities in the SBOM attached to release **$TAG** — the binary users have already downloaded. Source-tree scanners (nuget-audit / Dependabot) don't cover shipped artifacts; this is that gap."
+              echo "osv-scanner found known vulnerabilities in the SBOM attached to release **$TAG** — the binary users have already downloaded. NuGet audit and GitHub dependency alerts do not cover shipped artifacts; this is that gap."
               echo
               echo "- Re-scan run: $RUN_URL"
               echo "- Fix: bump the affected dependency and cut a patch release, or record an accepted/unfixable advisory in \`osv-scanner.toml\`."

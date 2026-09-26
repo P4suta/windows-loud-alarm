@@ -1,9 +1,7 @@
-# Watches the mise toolchain pins (mise.toml) for versions that have fallen
-# behind their pin — the gap Dependabot can't see.
+# Watches the mise toolchain pins (mise.toml) for versions that remain behind after normal Renovate updates.
 #
-# Dependabot covers nuget and github-actions, but has no mise ecosystem, so the
-# pinned dev/CI toolchain (dotnet, just, lefthook, actionlint, committed, …) drifts
-# silently. This is that missing watcher.
+# Renovate owns dependency-update pull requests.
+# This independent audit keeps a held or otherwise missed dev/CI toolchain pin from drifting silently.
 #
 # `mise outdated --bump` compares each pin against the latest available version
 # *beyond* the pin (not just within it), so a pin of "1.7.12" against a 1.8 release
@@ -70,12 +68,12 @@ jobs:
             {
               echo "## 🧰 mise toolchain pins are behind"
               echo
-              echo "\`mise outdated --bump\` found pins in \`mise.toml\` whose latest version is **beyond the current pin** — Dependabot doesn't watch the mise ecosystem, so these need a manual bump."
+              echo "\`mise outdated --bump\` found pins in \`mise.toml\` whose latest version is **beyond the current pin** and Renovate has not moved them yet."
               echo
               cat drift-table.md
               echo
               echo "- Detection run: $RUN_URL"
-              echo "- Fix: bump the pin in \`mise.toml\`, run \`mise install\`, then verify \`just check\` stays green."
+              echo "- Fix: review the Renovate dashboard or bump the pin in \`mise.toml\`, run \`mise install\`, then verify \`just check\` stays green."
             } > issue-body.md
             if [ -n "$existing" ]; then
               gh issue edit "$existing" --body-file issue-body.md

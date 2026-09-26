@@ -112,10 +112,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # Keep in lockstep with committed.toml's allowed_types so the local
-          # commit-msg hook and this gate agree. `deps` is included so Dependabot's
-          # `deps:`-prefixed PR titles (see .github/dependabot.yml) pass — amannn's
-          # default set omits ci/build/deps/revert.
+          # Keep in lockstep with committed.toml's allowed_types so the local commit-msg hook and this gate agree.
+          # Renovate uses `build(deps):`; `deps` remains available for focused human-authored dependency changes.
+          # amannn's default set omits ci/build/deps/revert.
           types: |
             feat
             fix

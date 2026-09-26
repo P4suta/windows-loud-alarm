@@ -39,7 +39,7 @@
 
     <!-- Single source of the app version; release-please rewrites the annotated line.
          AssemblyVersion/FileVersion/InformationalVersion derive from it. -->
-    <Version>0.1.0</Version> <!-- x-release-please-version -->
+    <Version>0.2.0</Version> <!-- x-release-please-version -->
     <AssemblyVersion>$(Version)</AssemblyVersion>
     <FileVersion>$(Version)</FileVersion>
     <InformationalVersion>$(Version)</InformationalVersion>

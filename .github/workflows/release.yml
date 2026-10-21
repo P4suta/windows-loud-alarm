@@ -148,16 +148,14 @@ jobs:
     timeout-minutes: 30
     environment: release
     permissions:
+      id-token: write
       contents: read
     env:
       # secrets.* cannot be referenced in `if:`; hoist presence to a job-level env
       # bool, then gate the signing steps on env.HAVE_SIGNING. batch_sign is driven
       # by the credential_id, so gate on its presence.
-      HAVE_SIGNING: ${{ secrets.ES_USERNAME != '' && secrets.CREDENTIAL_ID != '' }}
+      HAVE_SIGNING: ${{ vars.DOPPLER_SIGN_WINDOWS_IDENTITY_ID != '' }}
     steps:
-      # The Verify step uses a local composite action, which needs the repo tree
-      # present. Pin to the same release commit the bundle was built from. Runs first,
-      # before the artifact download, so checkout's clean does not wipe the bundle.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ env.REF }}
@@ -190,15 +188,40 @@ jobs:
           New-Item -ItemType Directory -Force signed | Out-Null
           foreach ($rel in $map.Keys) { Copy-Item "publish/dist/Alarm/$rel" "sign-stage/$($map[$rel])" }
 
+      - name: Fetch sign_windows credentials
+        id: doppler_sign_windows_3
+        if: "env.HAVE_SIGNING == 'true'"
+        uses: dopplerhq/secrets-fetch-action@451892f16195f9ac360e1a5bcbf0b5fd0e957534
+        with:
+          auth-method: oidc
+          doppler-identity-id: ${{ vars.DOPPLER_SIGN_WINDOWS_IDENTITY_ID }}
+          doppler-project: windows-loud-alarm
+          doppler-config: sign_windows
+          inject-env-vars: false
+      - name: Reject missing or unresolved sign_windows credentials
+        if: >-
+          ${{ steps.doppler_sign_windows_3.outcome == 'success' && (
+          steps.doppler_sign_windows_3.outputs.SSLDOTCOM_CREDENTIAL_ID == '' ||
+          startsWith(steps.doppler_sign_windows_3.outputs.SSLDOTCOM_CREDENTIAL_ID, '${') ||
+          steps.doppler_sign_windows_3.outputs.SSLDOTCOM_PASSWORD == '' ||
+          startsWith(steps.doppler_sign_windows_3.outputs.SSLDOTCOM_PASSWORD, '${') ||
+          steps.doppler_sign_windows_3.outputs.SSLDOTCOM_TOTP_SECRET == '' ||
+          startsWith(steps.doppler_sign_windows_3.outputs.SSLDOTCOM_TOTP_SECRET, '${') ||
+          steps.doppler_sign_windows_3.outputs.SSLDOTCOM_USERNAME == '' ||
+          startsWith(steps.doppler_sign_windows_3.outputs.SSLDOTCOM_USERNAME, '${')
+          ) }}
+        shell: bash
+        run: exit 1
+
       - name: Sign staged binaries (SSL.com eSigner)
         if: env.HAVE_SIGNING == 'true'
         uses: SSLcom/esigner-codesign@cf5f6c1d38ad10f47e3ed9aca873f429b1a8d85b # v1.3.2
         with:
           command: batch_sign
-          username: ${{ secrets.ES_USERNAME }}
-          password: ${{ secrets.ES_PASSWORD }}
-          credential_id: ${{ secrets.CREDENTIAL_ID }}
-          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
+          username: ${{ steps.doppler_sign_windows_3.outputs.SSLDOTCOM_USERNAME }}
+          password: ${{ steps.doppler_sign_windows_3.outputs.SSLDOTCOM_PASSWORD }}
+          credential_id: ${{ steps.doppler_sign_windows_3.outputs.SSLDOTCOM_CREDENTIAL_ID }}
+          totp_secret: ${{ steps.doppler_sign_windows_3.outputs.SSLDOTCOM_TOTP_SECRET }}
           dir_path: ${{ github.workspace }}\sign-stage
           # Write signed files to a dedicated dir. batch_sign does NOT honor
           # `override` (the Action never forwards -override), so without an explicit

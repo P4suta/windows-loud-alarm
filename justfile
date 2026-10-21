@@ -17,23 +17,23 @@ bootstrap:
 # Restore in locked mode. Fails on Directory.Packages.props drift; re-evaluate with
 # `mise exec -- dotnet restore Alarm.slnx --force-evaluate` after a bump.
 restore:
-    dotnet restore Alarm.slnx --locked-mode
+    mise exec -- dotnet restore Alarm.slnx --locked-mode
 
 # Full build with strict analyzers (src + tests)
 build:
-    dotnet build Alarm.slnx --no-restore
+    mise exec -- dotnet build Alarm.slnx --no-restore
 
 # Clean & rebuild
 rebuild:
-    dotnet build Alarm.slnx --no-incremental
+    mise exec -- dotnet build Alarm.slnx --no-incremental
 
 # Run the alarm app (x64 Debug)
 run:
-    dotnet run --project src/Alarm.Presentation/Alarm.Presentation.csproj -p:Platform=x64
+    mise exec -- dotnet run --project src/Alarm.Presentation/Alarm.Presentation.csproj -p:Platform=x64
 
 # Hot-reload dev loop (restarts the app on change; full XAML Hot Reload needs Visual Studio).
 watch:
-    dotnet watch --project src/Alarm.Presentation/Alarm.Presentation.csproj run -p:Platform=x64
+    mise exec -- dotnet watch --project src/Alarm.Presentation/Alarm.Presentation.csproj run -p:Platform=x64
 
 # Regenerate src/Alarm.Presentation/Assets/Alarm.ico from Assets/AppIcon.png. The .ico is
 # committed, so re-run only after changing the source PNG or tools/make-icon.py.
@@ -68,18 +68,18 @@ check-fast: restore test-fast
 
 # Apply .editorconfig + analyzer auto-fixes
 format:
-    dotnet format Alarm.slnx
+    mise exec -- dotnet format Alarm.slnx
 
 # Check formatting without writing
 format-check:
-    dotnet format Alarm.slnx --verify-no-changes
+    mise exec -- dotnet format Alarm.slnx --verify-no-changes
 
 # Verify layering: Domain has zero references, Application only references Domain.
 verify-layers:
     @Write-Host "── Domain references (must be empty) ──" -ForegroundColor Cyan
-    dotnet list src/Alarm.Domain/Alarm.Domain.csproj reference
+    mise exec -- dotnet list src/Alarm.Domain/Alarm.Domain.csproj reference
     @Write-Host "── Application references (must be Domain only) ──" -ForegroundColor Cyan
-    dotnet list src/Alarm.Application/Alarm.Application.csproj reference
+    mise exec -- dotnet list src/Alarm.Application/Alarm.Application.csproj reference
 
 # Spell-check sources
 typos:
@@ -95,12 +95,12 @@ _kill-app-quiet:
 # Assemble the downloadable bundle in ./publish/dist/Alarm (see scripts/AssembleBundle.cs
 # and docs/ARCHITECTURE.md). Native AOT launcher needs the MSVC C++ toolchain (`just doctor`).
 publish: _kill-app-quiet
-    dotnet run scripts/AssembleBundle.cs
+    mise exec -- dotnet run scripts/AssembleBundle.cs
 
 # Zip the bundle + write SHA256SUMS.txt for a Release (run `just publish` first). Shared
 # with CI's release.yml via `just package`. See scripts/Package.cs.
 package TAG:
-    dotnet run scripts/Package.cs -- {{TAG}}
+    mise exec -- dotnet run scripts/Package.cs -- {{TAG}}
 
 # Kill a running Alarm.exe — it locks publish/dist/Alarm/app/Alarm.{exe,dll} against re-publish.
 stop-app:
@@ -111,44 +111,44 @@ full: stop-app clean restore rebuild test-fast format-check publish artifact-sum
 
 # Print the assembled bundle's layout + total footprint. See scripts/ArtifactSummary.cs.
 artifact-summary:
-    dotnet run scripts/ArtifactSummary.cs
+    mise exec -- dotnet run scripts/ArtifactSummary.cs
 
 # Performance & diagnostics
 
 # Perf medians (cold rebuild / warm / test) + binlog + analyzer report. See scripts/MeasureBuild.cs.
 measure *ARGS:
-    dotnet run scripts/MeasureBuild.cs -- {{ARGS}}
+    mise exec -- dotnet run scripts/MeasureBuild.cs -- {{ARGS}}
 
 # Build with a binary log + PerformanceSummary (open with MSBuild Binary Log Viewer).
 measure-binlog:
     New-Item -ItemType Directory -Force -Path artifacts/perf | Out-Null
-    dotnet build Alarm.slnx --no-restore -bl:artifacts/perf/build.binlog /clp:PerformanceSummary
+    mise exec -- dotnet build Alarm.slnx --no-restore -bl:artifacts/perf/build.binlog /clp:PerformanceSummary
 
 # Per-analyzer time report. --no-incremental forces analyzers to run; -tl:off + detailed
 # verbosity are needed for csc to print the analyzer table.
 analyzer-report:
-    dotnet build Alarm.slnx --no-restore --no-incremental -tl:off -p:ReportAnalyzer=true -clp:Verbosity=detailed -nologo
+    mise exec -- dotnet build Alarm.slnx --no-restore --no-incremental -tl:off -p:ReportAnalyzer=true -clp:Verbosity=detailed -nologo
 
 # MSBuild BuildCheck — structural findings about the build itself.
 lint-build:
-    dotnet build Alarm.slnx --no-restore -check /nologo
+    mise exec -- dotnet build Alarm.slnx --no-restore -check /nologo
 
 # Aggregate target/task/project timings from a binlog (run `just measure-binlog` first).
 analyze-binlog *ARGS:
-    dotnet run scripts/AnalyzeBinlog.cs -- {{ARGS}}
+    mise exec -- dotnet run scripts/AnalyzeBinlog.cs -- {{ARGS}}
 
 # Diagnostics & cleanup
 
 # Diagnose the toolchain (mise/dotnet/just + MSVC C++ probe). See scripts/Doctor.cs.
 doctor:
-    dotnet run scripts/Doctor.cs
+    mise exec -- dotnet run scripts/Doctor.cs
 
 # Short toolchain version dump.
 info:
     @Write-Host "── mise tools ──" -ForegroundColor Cyan
     mise current
     @Write-Host "── dotnet SDKs ──" -ForegroundColor Cyan
-    dotnet --list-sdks
+    mise exec -- dotnet --list-sdks
     @Write-Host "── just ──" -ForegroundColor Cyan
     just --version
 
@@ -158,4 +158,4 @@ clean:
 
 # Clear the local NuGet HTTP cache
 clear-cache:
-    dotnet nuget locals http-cache --clear
+    mise exec -- dotnet nuget locals http-cache --clear

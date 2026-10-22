@@ -29,11 +29,11 @@ rebuild:
 
 # Run the alarm app (x64 Debug)
 run:
-    mise exec -- dotnet run --project src/Alarm.Presentation/Alarm.Presentation.csproj -p:Platform=x64
+    mise exec -- dotnet run --project src/Alarm.Presentation/Alarm.Presentation.csproj '-p:Platform=x64'
 
 # Hot-reload dev loop (restarts the app on change; full XAML Hot Reload needs Visual Studio).
 watch:
-    mise exec -- dotnet watch --project src/Alarm.Presentation/Alarm.Presentation.csproj run -p:Platform=x64
+    mise exec -- dotnet watch --project src/Alarm.Presentation/Alarm.Presentation.csproj run '-p:Platform=x64'
 
 # Regenerate src/Alarm.Presentation/Assets/Alarm.ico from Assets/AppIcon.png. The .ico is
 # committed, so re-run only after changing the source PNG or tools/make-icon.py.
@@ -122,12 +122,12 @@ measure *ARGS:
 # Build with a binary log + PerformanceSummary (open with MSBuild Binary Log Viewer).
 measure-binlog:
     New-Item -ItemType Directory -Force -Path artifacts/perf | Out-Null
-    mise exec -- dotnet build Alarm.slnx --no-restore -bl:artifacts/perf/build.binlog /clp:PerformanceSummary
+    mise exec -- dotnet build Alarm.slnx --no-restore '-bl:artifacts/perf/build.binlog' '/clp:PerformanceSummary'
 
 # Per-analyzer time report. --no-incremental forces analyzers to run; -tl:off + detailed
 # verbosity are needed for csc to print the analyzer table.
 analyzer-report:
-    mise exec -- dotnet build Alarm.slnx --no-restore --no-incremental -tl:off -p:ReportAnalyzer=true -clp:Verbosity=detailed -nologo
+    mise exec -- dotnet build Alarm.slnx --no-restore --no-incremental '-tl:off' '-p:ReportAnalyzer=true' '-clp:Verbosity=detailed' -nologo
 
 # MSBuild BuildCheck — structural findings about the build itself.
 lint-build:

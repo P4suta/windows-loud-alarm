@@ -1,3 +1,5 @@
+using System.Runtime.ExceptionServices;
+using System.Threading.Channels;
 using Alarm.Application.Effects;
 using Alarm.Application.Events;
 using Alarm.Application.Ports;
@@ -8,42 +10,73 @@ using Microsoft.Extensions.Logging;
 namespace Alarm.Application.Store;
 
 /// <summary>
-/// Translates declarative <see cref="AlarmEffect"/> values into port invocations. Each
-/// interpretation is composite-and-atomic-by-design: a <c>BeginRinging</c> performs
-/// capture → max → start-play and only then dispatches <c>RingingBegan</c>, so a Stop
-/// arriving mid-sequence cannot strand a captured volume snapshot.
+/// Owns playback startup, cancellation, and the captured volume until restoration.
+/// Readiness observers leave the effect consumer available for cancellation.
 /// </summary>
 internal sealed class EffectInterpreter : IAsyncDisposable
 {
-    private readonly AlarmStore _store;
+    private readonly IAlarmStore _store;
+    private readonly ChannelReader<AlarmEffect> _effects;
     private readonly IAudioPlayer _player;
     private readonly ISystemVolumeController _volume;
     private readonly TimeProvider _time;
     private readonly ILogger<EffectInterpreter> _logger;
 
-    private CancellationTokenSource? _ringCts;
-    private Task? _playbackTask;
+    private PlaybackOperation? _operation;
+    private readonly Lock _lifecycleGate = new();
+    private CancellationTokenSource? _runCancellation;
+    private Task? _runTask;
+    private Task? _disposeTask;
 
     public EffectInterpreter(AlarmStore store, IAudioPlayer player, ISystemVolumeController volume, TimeProvider time, ILogger<EffectInterpreter> logger)
+        : this(store, store.EffectReader, player, volume, time, logger)
+    {
+    }
+
+    internal EffectInterpreter(IAlarmStore store, ChannelReader<AlarmEffect> effects, IAudioPlayer player, ISystemVolumeController volume, TimeProvider time, ILogger<EffectInterpreter> logger)
     {
         _store = store;
+        _effects = effects;
         _player = player;
         _volume = volume;
         _time = time;
         _logger = logger;
     }
 
-    /// <summary>Drives the effect loop. Returns when the effect channel completes or ct is cancelled.</summary>
-    internal async Task RunAsync(CancellationToken ct)
+    /// <summary>Processes effects until channel completion or cancellation.</summary>
+    internal Task RunAsync(CancellationToken ct)
+    {
+        lock (_lifecycleGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposeTask is not null, this);
+            if (_runTask is not null)
+            {
+                throw new InvalidOperationException("The interpreter can only run once.");
+            }
+
+            _runCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            _runTask = RunCoreAsync(_runCancellation.Token);
+            return _runTask;
+        }
+    }
+
+    private async Task RunCoreAsync(CancellationToken ct)
     {
         try
         {
-            await foreach (var fx in _store.EffectReader.ReadAllAsync(ct).ConfigureAwait(false))
+            await foreach (var fx in _effects.ReadAllAsync(ct).ConfigureAwait(false))
             {
                 await DispatchEffectAsync(fx, ct).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) { /* expected on shutdown */ }
+        finally
+        {
+            if (_operation is { } operation)
+            {
+                await StopOperationAsync(operation.Schedule, notify: false).ConfigureAwait(false);
+            }
+        }
     }
 
     private async Task DispatchEffectAsync(AlarmEffect fx, CancellationToken ct)
@@ -54,7 +87,10 @@ internal sealed class EffectInterpreter : IAsyncDisposable
                 await BeginRingingAsync(br.Schedule, ct).ConfigureAwait(false);
                 break;
             case AlarmEffect.EndRinging er:
-                await EndRingingAsync(er.RestorePoint).ConfigureAwait(false);
+                await StopOperationAsync(er.Schedule, notify: true).ConfigureAwait(false);
+                break;
+            case AlarmEffect.CancelRinging cancel:
+                await StopOperationAsync(cancel.Schedule, notify: true).ConfigureAwait(false);
                 break;
             case AlarmEffect.NotifyError ne:
                 _logger.LogWarning("Alarm error surfaced: {Error}", ne.Error);
@@ -67,78 +103,186 @@ internal sealed class EffectInterpreter : IAsyncDisposable
 
     private async Task BeginRingingAsync(AlarmSchedule schedule, CancellationToken outer)
     {
+        if (_operation is not null)
+        {
+            return;
+        }
+
         VolumeSnapshot snapshot;
         try
         {
             snapshot = _volume.Capture();
-            _volume.Apply(VolumeSnapshot.Maximum);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to capture/apply volume before ringing");
-            await _store.DispatchAsync(new AlarmEvent.EffectFailed(nameof(AlarmEffect.BeginRinging), AlarmError.From(ex)), CancellationToken.None).ConfigureAwait(false);
+            _logger.LogError(ex, "Failed to capture volume before ringing");
+            await ReportFailureAsync(schedule, nameof(AlarmEffect.BeginRinging), AlarmError.From(ex)).ConfigureAwait(false);
             return;
         }
 
-        if (_ringCts is { } prevCts) await prevCts.CancelAsync().ConfigureAwait(false);
-        _ringCts = CancellationTokenSource.CreateLinkedTokenSource(outer);
-        var token = _ringCts.Token;
-
-        _playbackTask = Task.Run(async () =>
-        {
-            try
-            {
-                await _player.PlayUntilCancelledAsync(schedule.Sound, token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) { /* expected on stop */ }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Playback failed");
-                await _store.DispatchAsync(new AlarmEvent.EffectFailed(nameof(AlarmEffect.BeginRinging), AlarmError.From(ex)), CancellationToken.None).ConfigureAwait(false);
-            }
-        }, CancellationToken.None);
-
-        await _store.DispatchAsync(new AlarmEvent.RingingBegan(snapshot), CancellationToken.None).ConfigureAwait(false);
-    }
-
-    private async Task EndRingingAsync(VolumeSnapshot restore)
-    {
+        var operation = new PlaybackOperation(schedule, snapshot, outer);
+        _operation = operation;
         try
         {
-            if (_ringCts is { } cts) await cts.CancelAsync().ConfigureAwait(false);
-            if (_playbackTask is { } t)
-            {
-                try { await t.ConfigureAwait(false); }
-                catch (OperationCanceledException) { /* expected */ }
-            }
-            _volume.Apply(restore);
-            await _store.DispatchAsync(new AlarmEvent.RingingEnded(_time.GetLocalNow()), CancellationToken.None).ConfigureAwait(false);
+            _volume.Apply(VolumeSnapshot.Maximum);
+            var session = _player.StartPlayback(schedule.Sound, operation.Cancellation.Token);
+            operation.Session = session;
+            operation.Observer = ObservePlaybackAsync(operation, session);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to stop ringing or restore volume");
-            await _store.DispatchAsync(new AlarmEvent.RingingEnded(_time.GetLocalNow()), CancellationToken.None).ConfigureAwait(false);
-            await _store.DispatchAsync(new AlarmEvent.EffectFailed(nameof(AlarmEffect.EndRinging), new AlarmError.VolumeRestoreFailed(ex.Message)), CancellationToken.None).ConfigureAwait(false);
-        }
-        finally
-        {
-            _ringCts?.Dispose();
-            _ringCts = null;
-            _playbackTask = null;
+            _logger.LogError(ex, "Failed to start playback");
+            await StopOperationAsync(schedule, notify: true).ConfigureAwait(false);
+            await ReportFailureAsync(schedule, nameof(AlarmEffect.BeginRinging), AlarmError.From(ex)).ConfigureAwait(false);
         }
     }
 
-    public async ValueTask DisposeAsync()
+    private async Task ObservePlaybackAsync(PlaybackOperation operation, PlaybackSession session)
     {
-        if (_ringCts is { } cts) await cts.CancelAsync().ConfigureAwait(false);
-        if (_playbackTask is { } t)
+        var token = operation.Cancellation.Token;
+        try
         {
-            try { await t.ConfigureAwait(false); }
-            catch (OperationCanceledException) { /* expected */ }
-            catch (Exception ex) { _logger.LogDebug(ex, "Playback task threw during dispose"); }
+            await session.Ready.ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            await _store.DispatchAsync(new AlarmEvent.RingingBegan(operation.Schedule, operation.Snapshot), CancellationToken.None).ConfigureAwait(false);
+            await session.Completion.ConfigureAwait(false);
+            if (!token.IsCancellationRequested)
+            {
+                await ReportFailureAsync(operation.Schedule, nameof(AlarmEffect.BeginRinging), new AlarmError.AudioPlaybackFailed("Playback ended before cancellation.")).ConfigureAwait(false);
+            }
         }
-        _ringCts?.Dispose();
-        _ringCts = null;
-        _playbackTask = null;
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            operation.ReportedFailure = ex;
+            _logger.LogError(ex, "Playback failed");
+            await ReportFailureAsync(operation.Schedule, nameof(AlarmEffect.BeginRinging), AlarmError.From(ex)).ConfigureAwait(false);
+        }
+    }
+
+    private async Task StopOperationAsync(AlarmSchedule schedule, bool notify)
+    {
+        if (_operation is not { } operation || !ReferenceEquals(operation.Schedule, schedule))
+        {
+            return;
+        }
+
+        Exception? cancellationFailure = null;
+        try
+        {
+            await operation.Cancellation.CancelAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            cancellationFailure = ex;
+            _logger.LogError(ex, "Playback cancellation callback failed");
+        }
+
+        Exception? completionFailure = null;
+        if (operation.Session is { } session)
+        {
+            try { await session.Completion.ConfigureAwait(false); }
+            catch (OperationCanceledException) when (operation.Cancellation.IsCancellationRequested) { }
+            catch (Exception ex) { completionFailure = ex; }
+        }
+
+        try { await operation.Observer.ConfigureAwait(false); }
+        catch (Exception ex) { _logger.LogError(ex, "Playback observer failed during cleanup"); }
+
+        var unreportedCompletionFailure = completionFailure is not null && !ReferenceEquals(completionFailure, operation.ReportedFailure);
+        if (unreportedCompletionFailure)
+        {
+            _logger.LogError(completionFailure, "Playback completion failed during cleanup");
+        }
+
+        Exception? restorationFailure = null;
+        try
+        {
+            _volume.Apply(operation.Snapshot);
+        }
+        catch (Exception ex)
+        {
+            restorationFailure = ex;
+            _logger.LogError(ex, "Failed to restore volume");
+        }
+        finally
+        {
+            _operation = null;
+            operation.Dispose();
+        }
+
+        if (notify)
+        {
+            await _store.DispatchAsync(new AlarmEvent.RingingEnded(schedule, _time.GetLocalNow()), CancellationToken.None).ConfigureAwait(false);
+            if (unreportedCompletionFailure && completionFailure is { } completionError)
+            {
+                await ReportFailureAsync(schedule, nameof(AlarmEffect.EndRinging), AlarmError.From(completionError)).ConfigureAwait(false);
+            }
+            if (restorationFailure is { } restoreError)
+            {
+                await ReportFailureAsync(schedule, nameof(AlarmEffect.EndRinging), new AlarmError.VolumeRestoreFailed(restoreError.Message)).ConfigureAwait(false);
+            }
+            if (cancellationFailure is { } cancelError)
+            {
+                await ReportFailureAsync(schedule, nameof(AlarmEffect.EndRinging), AlarmError.From(cancelError)).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private ValueTask ReportFailureAsync(AlarmSchedule schedule, string effectName, AlarmError error) =>
+        _store.DispatchAsync(new AlarmEvent.EffectFailed(schedule, effectName, error), CancellationToken.None);
+
+    public ValueTask DisposeAsync()
+    {
+        lock (_lifecycleGate)
+        {
+            _disposeTask ??= DisposeCoreAsync(_runCancellation, _runTask);
+            return new ValueTask(_disposeTask);
+        }
+    }
+
+    private async Task DisposeCoreAsync(CancellationTokenSource? cancellation, Task? runTask)
+    {
+        Exception? cancellationFailure = null;
+        if (cancellation is not null)
+        {
+            try { await cancellation.CancelAsync().ConfigureAwait(false); }
+            catch (Exception ex)
+            {
+                cancellationFailure = ex;
+                _logger.LogError(ex, "Interpreter cancellation callback failed");
+            }
+        }
+
+        try
+        {
+            if (runTask is not null)
+            {
+                await runTask.ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            cancellation?.Dispose();
+        }
+
+        if (cancellationFailure is not null)
+        {
+            ExceptionDispatchInfo.Capture(cancellationFailure).Throw();
+        }
+    }
+
+    private sealed class PlaybackOperation(AlarmSchedule schedule, VolumeSnapshot snapshot, CancellationToken outer) : IDisposable
+    {
+        public AlarmSchedule Schedule { get; } = schedule;
+        public VolumeSnapshot Snapshot { get; } = snapshot;
+        public CancellationTokenSource Cancellation { get; } = CancellationTokenSource.CreateLinkedTokenSource(outer);
+        public PlaybackSession? Session { get; set; }
+        public Task Observer { get; set; } = Task.CompletedTask;
+        public Exception? ReportedFailure { get; set; }
+
+        public void Dispose() => Cancellation.Dispose();
     }
 }

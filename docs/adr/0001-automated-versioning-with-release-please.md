@@ -69,3 +69,19 @@ Action as the sibling repo), hard-gated so a real publish can't ship unsigned. S
 - A code-signing certificate becomes available → add the `sign` job.
 - ARM64 or MSIX distribution is wanted → extend `just package` + `release.yml`.
 - release-please ships a first-class .NET release-type → reconsider `simple`.
+
+## Verification update on 2026-10-25
+
+Pull requests require a validated change scope and whitespace check.
+Only changes to the enumerated documentation files with regular file modes omit the Windows build.
+Other changes require locked restore, strict analyzer builds, `Microsoft.Testing.Platform` tests, and formatting checks.
+Release approval remains mandatory for release pull requests.
+
+Routine CI no longer publishes distributions or collects performance artifacts.
+The release workflow retains distribution, signing, and publication checks.
+Strict restore supplies NuGet advisory checks, and Renovate owns tool update proposals.
+Routine CI omits the redundant `nuget-audit`, `mise-outdated`, and `scorecard` workflows.
+Shipped-version SBOM monitoring remains separate.
+
+C# CodeQL tracing runs on relevant main changes, preserving Security tab analysis while foregoing C# pull request annotations.
+Lightweight Python and Actions analysis remains available before merge.

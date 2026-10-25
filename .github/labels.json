@@ -20,11 +20,6 @@
     "description": "sbom-monitor.yml: osv-scanner found a vulnerability in a shipped SBOM."
   },
   {
-    "name": "mise-outdated",
-    "color": "fbca04",
-    "description": "mise-outdated.yml: a mise-pinned tool drifted from its latest release."
-  },
-  {
     "name": "bug",
     "color": "d73a4a",
     "description": "Something isn't working."

@@ -11,9 +11,8 @@ using Xunit;
 namespace Alarm.Application.Tests.Store;
 
 /// <summary>
-/// End-to-end scenarios driven through the real <see cref="AlarmStore"/> + <see cref="EffectInterpreter"/>
-/// loop, with fake ports standing in for hardware. Each test runs both loops in the background
-/// and walks the state stream via a helper that waits for a target state.
+/// Scenarios exercise <see cref="AlarmStore"/> and <see cref="EffectInterpreter"/> with fake hardware ports.
+/// The harness starts both loops and waits for target states.
 /// </summary>
 public class AlarmStoreScenarioTests
 {

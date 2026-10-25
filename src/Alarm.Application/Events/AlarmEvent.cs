@@ -4,9 +4,8 @@ using Alarm.Domain.Model;
 namespace Alarm.Application.Events;
 
 /// <summary>
-/// Closed hierarchy of inputs to the alarm reducer. UI intents and effect completions
-/// are both events — the reducer treats them uniformly, which is how a chain of effects
-/// (capture → set max → start play → "RingingBegan") composes into a single state transition.
+/// UI intents and cycle-bound effect completions drive the reducer.
+/// <see cref="RingingBegan"/> follows playback readiness rather than worker scheduling.
 /// </summary>
 public abstract record AlarmEvent
 {
@@ -31,7 +30,7 @@ public abstract record AlarmEvent
     public sealed record Tick(DateTimeOffset Now) : AlarmEvent;
 
     // --- Effect completion notifications ---
-    public sealed record RingingBegan(VolumeSnapshot CapturedRestorePoint) : AlarmEvent;
-    public sealed record RingingEnded(DateTimeOffset At) : AlarmEvent;
-    public sealed record EffectFailed(string EffectName, AlarmError Error) : AlarmEvent;
+    public sealed record RingingBegan(AlarmSchedule Schedule, VolumeSnapshot CapturedRestorePoint) : AlarmEvent;
+    public sealed record RingingEnded(AlarmSchedule Schedule, DateTimeOffset At) : AlarmEvent;
+    public sealed record EffectFailed(AlarmSchedule Schedule, string EffectName, AlarmError Error) : AlarmEvent;
 }

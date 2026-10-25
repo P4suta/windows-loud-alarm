@@ -3,17 +3,18 @@ using Alarm.Domain.Model;
 namespace Alarm.Application.Ports;
 
 /// <summary>
-/// Loops an <see cref="AudioSource"/> until cancelled. The returned task completes when
-/// playback has fully stopped — caller cancels via the token and may then await stop.
+/// Starts an <see cref="AudioSource"/> without blocking the caller.
+/// The session separates accepted playback from fully stopped playback.
 /// </summary>
 public interface IAudioPlayer
 {
     bool IsPlaying { get; }
 
     /// <summary>
-    /// Begin looping playback and complete only when the loop has fully stopped — either
-    /// because <paramref name="ct"/> was cancelled or the underlying source ended naturally.
-    /// Cancellation is the sole stop signal: callers cancel the token and await the same task.
+    /// Readiness completes after playback starts, or fails when startup fails.
+    /// Cancellation settles readiness and completion, including cancellation before startup.
+    /// Completion accounts for every owned worker and device handle.
+    /// Session tasks must complete without UI-thread access.
     /// </summary>
-    Task PlayUntilCancelledAsync(AudioSource source, CancellationToken ct);
+    PlaybackSession StartPlayback(AudioSource source, CancellationToken ct);
 }

@@ -211,6 +211,13 @@ dotnet_diagnostic.MA0004.severity = none    # ConfigureAwait(false) is wrong in 
 dotnet_diagnostic.VSTHRD100.severity = suggestion
 dotnet_diagnostic.VSTHRD101.severity = suggestion
 
+[src/Alarm.Application/Store/EffectInterpreter.cs]
+
+# Owned background tasks finish without UI-thread access; see docs/adr/playback-readiness.md.
+dotnet_diagnostic.VSTHRD003.severity = none
+# RunCoreAsync disposes the operation before asynchronous disposal completes.
+dotnet_diagnostic.CA2213.severity = none
+
 # Test code — xUnit Method_Scenario_Expected names use underscores.
 [tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none

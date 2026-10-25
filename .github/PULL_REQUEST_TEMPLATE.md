@@ -12,6 +12,6 @@ release-please reads to compute the next version + CHANGELOG. See CONTRIBUTING.m
 
 <!-- e.g. `just check` green, ran the app, added tests. -->
 
-- [ ] `just check` passes (restore → build → test → format-check)
-- [ ] Reducer table tests stay exhaustive if a state/event was added (CLAUDE.md rule 4)
-- [ ] No new analyzer suppressions outside `.editorconfig` (CLAUDE.md rule 3)
+- [ ] Run `just check` and confirm that restore, build, tests, and format-check pass.
+- [ ] Keep reducer table tests exhaustive after adding any state or event.
+- [ ] Keep new analyzer suppressions inside `.editorconfig`.

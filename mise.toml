@@ -1,10 +1,6 @@
-# Project-local toolchain (per dotfiles policy: project tool versions live in-repo,
-# not in the global mise config). Pinned so CI runners and fresh checkouts don't
-# depend on the developer's global mise.
 [tools]
-dotnet = "10.0.300"
-just = "1.51.0"
-lefthook = "2.1.6"
+just = "1.59.0"
+lefthook = "2.2.2"
 typos = "latest"
 # Drives the SubsetFonts target (uv brings its own Python on demand).
 uv = "latest"
@@ -20,5 +16,6 @@ MSBUILDUSESERVER = "1"
 TESTINGPLATFORM_TELEMETRY_OPTOUT = "1"
 
 [settings]
+idiomatic_version_file_enable_tools = ["dotnet"]
 # Fetch cargo: backend tools as prebuilt binaries (no Rust compile on install).
 cargo.binstall = true

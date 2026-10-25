@@ -84,7 +84,7 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - name: Set up mise (pins dotnet 10.0.300 + just)
+      - name: Set up project toolchain
         uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
         with:
           install: true

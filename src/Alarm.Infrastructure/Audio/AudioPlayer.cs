@@ -5,10 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace Alarm.Infrastructure.Audio;
 
 /// <summary>
-/// <see cref="IAudioPlayer"/> implementation: starts playback through <see cref="NAudioBackend"/>
-/// and awaits the supplied cancellation token. The returned task completes only after the
-/// backend has been stopped, so callers (e.g. the effect interpreter) can simply
-/// <c>ct.Cancel()</c> + <c>await</c> the playback task to know playback has truly ended.
+/// Starts playback through <see cref="NAudioBackend"/> and owns the device until completion.
+/// Readiness follows the successful start call, and completion follows device cleanup.
 /// </summary>
 internal sealed class AudioPlayer : IAudioPlayer, IAsyncDisposable
 {
@@ -25,29 +23,44 @@ internal sealed class AudioPlayer : IAudioPlayer, IAsyncDisposable
 
     public bool IsPlaying => _playing != 0;
 
-    public async Task PlayUntilCancelledAsync(AudioSource source, CancellationToken ct)
+    public PlaybackSession StartPlayback(AudioSource source, CancellationToken ct)
     {
-        ct.ThrowIfCancellationRequested();
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completion = Task.Run(() => PlayAsync(source, ready, ct), CancellationToken.None);
+        return new PlaybackSession(ready.Task, completion);
+    }
 
-        Interlocked.Exchange(ref _playing, 1);
+    private async Task PlayAsync(AudioSource source, TaskCompletionSource ready, CancellationToken ct)
+    {
         try
         {
+            ct.ThrowIfCancellationRequested();
             _backend.Play(source);
-            try
-            {
-                await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) { /* expected — stop requested */ }
+            ct.ThrowIfCancellationRequested();
+            Interlocked.Exchange(ref _playing, 1);
+            ready.TrySetResult();
+            await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            ready.TrySetCanceled(ct);
         }
         catch (Exception ex)
         {
+            ready.TrySetException(ex);
             _logger.LogError(ex, "Playback aborted with an unexpected error");
             throw;
         }
         finally
         {
-            _backend.Stop();
-            Interlocked.Exchange(ref _playing, 0);
+            try
+            {
+                _backend.Stop();
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _playing, 0);
+            }
         }
     }
 

@@ -2,37 +2,36 @@
 
 ## Setup
 
-`just bootstrap` installs the mise-pinned toolchain and restores packages. Everything
-runs through [`just`](justfile) (`just` lists recipes, `just doctor` diagnoses
-toolchain issues). See [`README.md`](README.md) for the overview and
-[`CLAUDE.md`](CLAUDE.md) for the operating manual and absolute rules (never call
-`dotnet`/`mise` directly, warnings-as-errors, exhaustive reducer tests, pure reducer).
+Follow the [Windows setup guide](docs/README.md#develop-on-windows) to install the tools and restore packages.
+Use the [justfile](justfile) recipes for development operations.
+`mise x -- just` lists the recipes, and `mise x -- just doctor` diagnoses toolchain problems.
 
 ## Before you push
 
-`just check` must be green — it mirrors CI: restore → build (strict analyzers) →
-test → format-check. The lefthook hooks run a subset automatically:
+Run `mise x -- just check` before pushing.
+The command restores packages, builds with strict analyzers, executes the tests, and verifies formatting.
+Keep the reducer pure and keep its state and event table tests exhaustive when behavior changes.
+Put analyzer suppressions in `.editorconfig` with an explanation.
+Separate the production and test sections.
+Add no new suppressions to project files.
 
-- **commit-msg** — [committed](committed.toml) checks the Conventional-Commits format.
-- **pre-commit** — `dotnet format --verify-no-changes` + typos on staged files.
-- **pre-push** — the full test suite.
+The commit message hook checks [Conventional Commits](https://www.conventionalcommits.org/) with [committed](committed.toml).
+The pre-commit hooks check formatting for staged source files and spelling for staged text.
+The pre-push hook runs the full test suite.
+Lint workflow edits with `mise x -- actionlint`.
 
-Lint workflow edits locally with `mise exec -- actionlint`.
+## Commit and pull request conventions
 
-## Commit & PR conventions
+Use Conventional Commits for commit messages and pull request titles, with lowercase subjects.
+The allowed types are `feat`, `fix`, `perf`, `docs`, `refactor`, `test`, `chore`, `ci`, `build`, `deps`, `style`, and `revert`.
+Examples include `feat(alarm): add snooze` and `fix(ci): pin actionlint`.
 
-Commits and **PR titles** follow [Conventional Commits](https://www.conventionalcommits.org/).
-PRs squash-merge, so the title becomes the commit that
-[release-please](docs/RELEASING.md) parses for the next version and CHANGELOG. The
-`pr-title` CI check enforces it.
-
-Allowed types: `feat`, `fix`, `perf`, `docs`, `refactor`, `test`, `chore`, `ci`,
-`build`, `deps`, `style`, `revert`. Use lowercase subjects, e.g.
-`feat(alarm): add snooze` or `fix(ci): pin actionlint`.
-
-`feat:` → minor bump, `fix:`/`perf:` → patch bump. Add a `!` or a
-`BREAKING CHANGE:` footer for a major bump.
+Pull requests use squash merges, so the title becomes the commit that release-please parses for the version and changelog.
+The `pr-title` check enforces the title format.
+`feat:` produces a minor version increase, while `fix:` and `perf:` produce a patch increase.
+Use `!` or a `BREAKING CHANGE:` footer for a major increase.
 
 ## Releases
 
-Fully automated — you never hand-edit a version. See [docs/RELEASING.md](docs/RELEASING.md).
+The release-please workflow automates version proposals.
+The [release guide](docs/RELEASING.md) describes the approval and publication steps.

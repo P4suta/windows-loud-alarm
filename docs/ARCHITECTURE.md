@@ -1,13 +1,12 @@
 # Architecture
 
-Long-form companion to [`../README.md`](../README.md). Records the load-bearing
-invariants — the ones a "simplification" would silently break.
+This guide extends [`../README.md`](../README.md) with runtime invariants that a simple change could break.
 
 ## Single-direction dataflow
 
-The whole runtime is one loop:
+The runtime follows one reducer and effect loop:
 
-```
+```text
                   ┌─────────────────────────────────────────────┐
                   │                AlarmStore                   │
 [UI] ── Dispatch ─▶ Channel<AlarmEvent>                         │
@@ -27,13 +26,12 @@ The whole runtime is one loop:
                                      └── Dispatch(AlarmEvent.RingingBegan / Ended / Failed)
 ```
 
-The reducer runs on a single dedicated loop (`AlarmStoreHostedService` →
-`AlarmStore.RunAsync`): no caller-side locking, no `SemaphoreSlim`. Effects are
-*values* on a separate channel that `EffectInterpreterHostedService` consumes; when
-an effect completes the interpreter dispatches a follow-up event, closing the loop.
-This is Redux/Elm over `Channel<T>`. The separate effect channel keeps each reducer
-turn synchronous while side effects (audio playback, volume capture — seconds long)
-stay non-blocking.
+`AlarmStoreHostedService` drives the reducer through `AlarmStore.RunAsync` on one dedicated loop.
+Callers need no locks or `SemaphoreSlim`.
+The store emits effect values on a separate channel for `EffectInterpreterHostedService` to consume.
+When an effect completes, the interpreter dispatches a follow-up event and closes the loop.
+This design follows Redux/Elm over `Channel<T>`.
+The separate effect channel keeps reducer turns synchronous while audio playback and volume capture can take seconds.
 
 ## State as a closed hierarchy
 
@@ -46,16 +44,18 @@ public abstract record AlarmState
 }
 ```
 
-Three states, exhaustively covered by the reducer's switch expression. `AlarmState`'s
-constructor is private, so the only inhabitants are the three sealed records — the
-compiler enforces this when you `switch` over `AlarmState`.
+`AlarmState` declares `Idle`, `Armed`, and `Ringing` as nested sealed record types.
+The reducer handles state and event pairs explicitly and returns `Transition.NoOp` for unmatched pairs.
 
 ### The load-bearing detail: `Ringing` owns its `RestorePoint`
 
-`Ringing` carries the `VolumeSnapshot` as a required record field, so the reducer
-cannot construct `Ringing` without it. Every transition that exits `Ringing`
-necessarily produces an `EndRinging(snapshot)` effect that restores exactly that
-value. "Captured volume but forgot to restore" is not expressible in the type.
+The required `VolumeSnapshot RestorePoint` field prevents the reducer from constructing a `Ringing` state without a captured snapshot.
+Stopping ringing emits `EndRinging` with that snapshot while the state remains `Ringing`.
+An effect failure during ringing also emits `EndRinging` with the snapshot and moves the state to `Idle`.
+`RingingEnded` moves the matching ringing cycle to `Idle` without requesting another restoration.
+Effect completion events carry their originating `AlarmSchedule`.
+The `Armed` and `Ringing` reducer branches compare schedule identity before accepting a completion.
+Cancelling an armed alarm moves it to `Idle` and emits `CancelRinging` to stop any pending playback startup.
 
 ## Effects as composite atomic units
 
@@ -63,85 +63,85 @@ value. "Captured volume but forgot to restore" is not expressible in the type.
 public abstract record AlarmEffect
 {
     public sealed record BeginRinging(AlarmSchedule Schedule) : AlarmEffect;
-    public sealed record EndRinging(VolumeSnapshot RestorePoint) : AlarmEffect;
+    public sealed record EndRinging(AlarmSchedule Schedule, VolumeSnapshot RestorePoint) : AlarmEffect;
+    public sealed record CancelRinging(AlarmSchedule Schedule) : AlarmEffect;
     public sealed record NotifyError(AlarmError Error) : AlarmEffect;
 }
 ```
 
-`BeginRinging` is composite and atomic: capture volume, set max, start playback all
-live in one interpreter method, so intermediate states (a captured snapshot with
-nothing playing) are never visible. Either it succeeds and produces
-`AlarmEvent.RingingBegan(snapshot)`, or it fails and produces
-`AlarmEvent.EffectFailed(...)` and the reducer routes recovery. `EndRinging` is the
-symmetric unit: cancel the playback token, await it, restore the snapshot, dispatch
-`RingingEnded`.
+`BeginRinging` captures the volume, raises it to 100%, starts a `PlaybackSession`, and launches a readiness observer.
+The observer dispatches `AlarmEvent.RingingBegan(schedule, snapshot)` only after the session's `Ready` task completes successfully.
+The effect consumer remains available for `CancelRinging` while the observer waits.
+Volume capture or override failures dispatch `AlarmEvent.EffectFailed(...)`, and playback exceptions also dispatch a failure event.
+The volume and audio operations remain separate external calls.
+`EndRinging` and `CancelRinging` cancel the playback token, await the session's `Completion` task and its observer, and attempt to restore the snapshot once.
+Cleanup dispatches `RingingEnded` after success or failure.
+A failure also dispatches `EffectFailed`.
 
 ## The reducer is pure (and that matters for tests)
 
-`AlarmReducer.Reduce` takes `(AlarmState, AlarmEvent, DateTimeOffset)` and returns
-`(AlarmState, ImmutableArray<AlarmEffect>)` — no `IClock`, no `ILogger`, no services.
-Time is a parameter; the store pulls it from `TimeProvider` at the call site. So the
-reducer's tests are exhaustive tables (every state × event pair has a row);
-`AlarmStoreScenarioTests` covers a few golden-path Store+Interpreter scenarios with
-fake ports and a `FakeTimeProvider`.
+`AlarmReducer.Reduce` takes `(AlarmState, AlarmEvent, DateTimeOffset)` and returns a `Transition` containing the next state and an `ImmutableArray<AlarmEffect>`.
+The reducer has no clock, logger, or service dependencies.
+The store reads `TimeProvider` at the call site and passes the current time to the reducer.
+Reducer tests check every state and event pair, while `AlarmStoreScenarioTests` covers selected store and interpreter flows with fake ports and a `FakeTimeProvider`.
 
 ## Ports & the layer ban
 
-`Alarm.Application/Ports/` holds every dependency the application has on the
-outside world:
+The ports in `Alarm.Application/Ports/` define the external dependencies of `Alarm.Application`.
+`IClock` wraps `TimeProvider.GetLocalNow()`.
+`IClockTicks` exposes a 1 Hz `Observable<DateTimeOffset>` for the UI countdown.
+`IAudioPlayer` exposes `IsPlaying` and returns a `PlaybackSession` from `StartPlayback(source, ct)`.
+The session's `Ready` task settles when playback starts or startup fails.
+Its `Completion` task accounts for every owned worker and device handle.
+Cancellation settles both `Ready` and `Completion`, including cancellation before startup.
+`ISystemVolumeController` exposes `Capture()` and `Apply(snapshot)` for volume snapshots.
+`IAudioFilePicker` opens an asynchronous dialog and returns `Result<UserFile, AlarmError>`.
+`IAlarmStatusPresenter` exposes `Bind(Observable<AlarmState>)` and Show and Exit events.
 
-- `IClock` — wraps `TimeProvider.GetLocalNow()`
-- `IClockTicks` — 1 Hz `Observable<DateTimeOffset>` for UI countdown display
-- `IAudioPlayer` — `PlayUntilCancelledAsync(source, ct)`
-- `ISystemVolumeController` — `Capture()` / `Apply(snapshot)`
-- `IAudioFilePicker` — async dialog returning `Result<UserFile, AlarmError>`
-- `IAlarmStatusPresenter` — `Bind(Observable<AlarmState>)` plus Show/Exit events
-
-`Alarm.Domain` has zero references. `Alarm.Application` references only `Alarm.Domain`.
-`Alarm.Infrastructure` implements the ports. `Alarm.Presentation` consumes the store
-via `IAlarmStore` and the ports for UI-driven actions. `just verify-layers` confirms
-these reference rules.
+`Alarm.Domain` has no project references, and `Alarm.Application` references only `Alarm.Domain`.
+`Alarm.Infrastructure` implements the ports.
+`Alarm.Presentation` uses `IAlarmStore` and the ports for UI-driven actions.
+`mise x -- just verify-layers` confirms these project reference rules.
 
 ## R3 (Reactive Extensions for .NET) as a thin layer
 
-The store exposes state as `R3.Observable<AlarmState>`. Two subscribers —
-`MainViewModel` (bindable properties) and `TrayStatusPresenter` (tooltip string) —
-neither aware of the other; a third is a one-line change at the composition root.
-R3 over `System.Reactive`: `TimeProvider`-native and a cleaner sync-context story
-for WinUI's `DispatcherQueue`. About five operators total (`Subscribe`,
-`DistinctUntilChanged`, `Select`, `Interval`, `BehaviorSubject`).
+The store exposes state as `R3.Observable<AlarmState>`.
+`MainViewModel` subscribes for bindable properties, and `TrayStatusPresenter` subscribes for its tooltip string.
+Neither subscriber knows about the other.
+Developers can add a third subscriber at the composition root with one line.
+The project selects R3 over `System.Reactive` for its native `TimeProvider` support.
+`MainViewModel` marshals subscription callbacks through WinUI's `DispatcherQueue`.
+The code uses five operators: `Subscribe`, `DistinctUntilChanged`, `Select`, `Interval`, and `BehaviorSubject`.
 
 ## Threading model
 
-- The reducer loop is single-threaded. Race conditions inside the state machine
-  cannot happen.
-- The effect interpreter loop is also single-threaded. Effects execute serially in
-  the order they were emitted.
-- Long-running effects (audio playback) spawn background tasks but do *not* block
-  the interpreter loop — the interpreter dispatches `RingingBegan` once the
-  playback task has started, then returns to consume the next effect. The playback
-  task itself completes (via cancellation token) only when an `EndRinging` effect
-  cancels it.
-- All R3 subscriptions in `MainViewModel` use `DispatcherQueue.GetForCurrentThread()`
-  captured at construction to marshal updates to the UI thread.
+The reducer loop processes events serially, so reducer invocations don't overlap.
+The effect interpreter also processes effects serially in emission order.
+Long-running audio effects use background tasks without blocking the interpreter loop.
+The interpreter returns to consume the next effect while a separate observer waits for playback readiness.
+The observer dispatches `RingingBegan` after playback starts.
+Playback can end through cancellation, shutdown, or failure.
+`MainViewModel` captures `DispatcherQueue.GetForCurrentThread()` at construction and uses it to marshal subscription updates to the UI thread.
 
 ## Libraries we said no to
 
-Don't add dependencies. MediatR, OneOf/FluentResults, Stateless, and AutoMapper were
-all intentionally rejected — the reducer is already the dispatcher, `Result<TOk,TErr>`
-is 40 lines in `Alarm.Domain/Common/Result.cs`, and effects are values, not callbacks.
+Don't add dependencies.
+The project intentionally rejects MediatR, OneOf/FluentResults, Stateless, and AutoMapper.
+The reducer already dispatches events.
+`Alarm.Domain/Common/Result.cs` defines `Result<TOk,TErr>` in 40 lines.
+Effects are values rather than callbacks.
 
 ## Distribution layout
 
-The app ships as an **unpackaged, self-contained** win-x64 build (no MSIX): a portable
-folder the user extracts and runs. `WindowsAppSDKSelfContained` is deliberately *not*
-set — under WinAppSDK 2.x it makes `Microsoft.UI.Xaml.dll` crash at startup — so the
-build relies on the Windows App Runtime 2.x being installed on the target.
+The app ships as an unpackaged, self-contained win-x64 build without MSIX.
+Users unpack a portable folder and run the app.
+`WindowsAppSDKSelfContained` remains unset because WinAppSDK 2.x makes `Microsoft.UI.Xaml.dll` crash at startup.
+The target must have Windows App Runtime 2.x installed.
 
-A self-contained WinUI build is ~329 files with no obvious entry point, so `just publish`
-(`scripts/AssembleBundle.cs`) assembles a **launcher-fronted bundle**:
+A self-contained WinUI build contains about 329 files and has no obvious entry point.
+`just publish` runs `scripts/AssembleBundle.cs` to assemble a launcher-fronted bundle:
 
-```
+```text
 publish/dist/Alarm/
 ├─ Alarm.exe        ← the one file a user runs (Native AOT launcher, src/Alarm.Launcher)
 ├─ README.txt       ← start guide (UTF-8 BOM + CRLF for Notepad)
@@ -151,33 +151,30 @@ publish/dist/Alarm/
    └─ Alarm.dll, coreclr.dll, Microsoft.WinUI.dll, …
 ```
 
-The .NET apphost resolves `Alarm.dll` / `*.deps.json` / `*.runtimeconfig.json` from
-its own directory, so it can't be lifted out of `app/`. The root `Alarm.exe` is a
-separate ~1.5 MB Native AOT program (`src/Alarm.Launcher`, `PublishAot=true`) whose
-only job is to `Process.Start(app\Alarm.exe)` — forwarding args, setting the working
-dir to `app\` — then exit, leaving exactly one GUI process. Native AOT costs an MSVC
-C++ toolchain at publish time (see `CLAUDE.md` → Toolchain).
+The .NET apphost resolves `Alarm.dll`, `*.deps.json`, and `*.runtimeconfig.json` from its own directory.
+Moving it out of `app/` prevents it from running.
+The root `Alarm.exe` is a separate ~1.5 MB Native AOT program in `src/Alarm.Launcher` with `PublishAot=true`.
+It starts `app\Alarm.exe` with `Process.Start`, forwards arguments, and sets the working directory to `app\`.
+The launcher then exits, leaving one GUI process.
+Publishing the launcher with Native AOT requires the MSVC C++ toolchain, as described in the [packaging guide](README.md#package-and-release).
 
-`AssembleBundle.cs` **self-verifies**: a missing root launcher or `app\Alarm.exe` /
-`app\Alarm.dll` fails the build at the producer. CI signs six first-party PEs (root
-launcher + five in `app/`); `just package` zips the bundle *contents* so extraction
-reproduces this layout.
+`AssembleBundle.cs` verifies the bundle and fails the build if the root launcher or `app\Alarm.exe` or `app\Alarm.dll` is missing.
+CI signs six first-party PE files, consisting of the root launcher and five files in `app/`.
+`just package` zips the bundle contents so extraction reproduces this layout.
 
 ## File pointers
 
-Critical files, with what they're responsible for:
-
-- `src/Alarm.Application/Reducer/AlarmReducer.cs` — every state transition
-- `src/Alarm.Application/Store/AlarmStore.cs` — reducer loop, state subject
-- `src/Alarm.Application/Store/EffectInterpreter.cs` — atomic begin/end ringing
-- `src/Alarm.Application/State/AlarmState.cs` — three-case closed hierarchy
-- `src/Alarm.Application/Events/AlarmEvent.cs` — every event the reducer accepts
-- `src/Alarm.Application/Effects/AlarmEffect.cs` — composite atomic effects
-- `src/Alarm.Application/Runtime/*HostedService.cs` — three loops (store, effects, tick)
-- `src/Alarm.Infrastructure/Audio/AudioPlayer.cs` — `PlayUntilCancelledAsync` contract
-- `src/Alarm.Infrastructure/Audio/NAudioBackend.cs` — NAudio device lifetime
-- `src/Alarm.Infrastructure/Volume/CoreAudioVolumeController.cs` — MMDevice cache
-- `src/Alarm.Presentation/Behaviors/LongPressGestureBehavior.cs` — long-press input + InsetClip animation
-- `src/Alarm.Launcher/Program.cs` — the root launcher that starts `app\Alarm.exe`
-- `scripts/AssembleBundle.cs` — assembles + self-verifies the `publish/dist/Alarm` bundle
-- `tests/Alarm.Application.Tests/Reducer/AlarmReducerTests.cs` — the contract
+The reducer's transitions live in `src/Alarm.Application/Reducer/AlarmReducer.cs`.
+`src/Alarm.Application/Store/AlarmStore.cs` contains the reducer loop and state subject.
+`src/Alarm.Application/Store/EffectInterpreter.cs` owns playback startup, cancellation, and volume restoration.
+`src/Alarm.Application/State/AlarmState.cs` defines the three-case closed hierarchy.
+`src/Alarm.Application/Events/AlarmEvent.cs` defines every event the reducer accepts.
+`src/Alarm.Application/Effects/AlarmEffect.cs` defines composite atomic effects.
+`src/Alarm.Application/Runtime/*HostedService.cs` contains the store, effect, and tick loops.
+`src/Alarm.Infrastructure/Audio/AudioPlayer.cs` implements the `StartPlayback` session contract.
+`src/Alarm.Infrastructure/Audio/NAudioBackend.cs` manages NAudio device lifetime.
+`src/Alarm.Infrastructure/Volume/CoreAudioVolumeController.cs` caches MMDevice instances.
+`src/Alarm.Presentation/Behaviors/LongPressGestureBehavior.cs` implements long-press input and InsetClip animation.
+`src/Alarm.Launcher/Program.cs` starts `app\Alarm.exe` from the root launcher.
+`scripts/AssembleBundle.cs` assembles and verifies the `publish/dist/Alarm` bundle.
+`tests/Alarm.Application.Tests/Reducer/AlarmReducerTests.cs` defines the reducer contract.

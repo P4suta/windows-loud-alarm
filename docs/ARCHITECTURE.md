@@ -52,7 +52,10 @@ The reducer handles state and event pairs explicitly and returns `Transition.NoO
 The required `VolumeSnapshot RestorePoint` field prevents the reducer from constructing a `Ringing` state without a captured snapshot.
 Stopping ringing emits `EndRinging` with that snapshot while the state remains `Ringing`.
 An effect failure during ringing also emits `EndRinging` with the snapshot and moves the state to `Idle`.
-`RingingEnded` moves a ringing state to `Idle` without requesting another restoration.
+`RingingEnded` moves the matching ringing cycle to `Idle` without requesting another restoration.
+Effect completion events carry their originating `AlarmSchedule`.
+The `Armed` and `Ringing` reducer branches compare schedule identity before accepting a completion.
+Cancelling an armed alarm moves it to `Idle` and emits `CancelRinging` to stop any pending playback startup.
 
 ## Effects as composite atomic units
 
@@ -60,17 +63,19 @@ An effect failure during ringing also emits `EndRinging` with the snapshot and m
 public abstract record AlarmEffect
 {
     public sealed record BeginRinging(AlarmSchedule Schedule) : AlarmEffect;
-    public sealed record EndRinging(VolumeSnapshot RestorePoint) : AlarmEffect;
+    public sealed record EndRinging(AlarmSchedule Schedule, VolumeSnapshot RestorePoint) : AlarmEffect;
+    public sealed record CancelRinging(AlarmSchedule Schedule) : AlarmEffect;
     public sealed record NotifyError(AlarmError Error) : AlarmEffect;
 }
 ```
 
-`BeginRinging` groups volume capture, volume override, and playback-task scheduling in one interpreter method.
-After scheduling playback, the interpreter dispatches `AlarmEvent.RingingBegan(snapshot)`.
+`BeginRinging` captures the volume, raises it to 100%, starts a `PlaybackSession`, and launches a readiness observer.
+The observer dispatches `AlarmEvent.RingingBegan(schedule, snapshot)` only after the session's `Ready` task completes successfully.
+The effect consumer remains available for `CancelRinging` while the observer waits.
 Volume capture or override failures dispatch `AlarmEvent.EffectFailed(...)`, and playback exceptions also dispatch a failure event.
 The volume and audio operations remain separate external calls.
-`EndRinging` cancels the playback token, awaits playback, and attempts to restore the snapshot.
-It dispatches `RingingEnded` after success or failure.
+`EndRinging` and `CancelRinging` cancel the playback token, await the session's `Completion` task and its observer, and attempt to restore the snapshot once.
+Cleanup dispatches `RingingEnded` after success or failure.
 A failure also dispatches `EffectFailed`.
 
 ## The reducer is pure (and that matters for tests)
@@ -85,7 +90,9 @@ Reducer tests check every state and event pair, while `AlarmStoreScenarioTests` 
 The ports in `Alarm.Application/Ports/` define the external dependencies of `Alarm.Application`.
 `IClock` wraps `TimeProvider.GetLocalNow()`.
 `IClockTicks` exposes a 1 Hz `Observable<DateTimeOffset>` for the UI countdown.
-`IAudioPlayer` provides `PlayUntilCancelledAsync(source, ct)`.
+`IAudioPlayer` exposes `IsPlaying` and returns a `PlaybackSession` from `StartPlayback(source, ct)`.
+The session's `Ready` task settles when playback starts or startup fails.
+Its `Completion` task accounts for every owned worker and device handle.
 `ISystemVolumeController` exposes `Capture()` and `Apply(snapshot)` for volume snapshots.
 `IAudioFilePicker` opens an asynchronous dialog and returns `Result<UserFile, AlarmError>`.
 `IAlarmStatusPresenter` exposes `Bind(Observable<AlarmState>)` and Show and Exit events.
@@ -110,7 +117,8 @@ The code uses five operators: `Subscribe`, `DistinctUntilChanged`, `Select`, `In
 The reducer loop processes events serially, so reducer invocations don't overlap.
 The effect interpreter also processes effects serially in emission order.
 Long-running audio effects use background tasks without blocking the interpreter loop.
-The interpreter dispatches `RingingBegan` after scheduling the playback task, then returns to consume the next effect.
+The interpreter returns to consume the next effect while a separate observer waits for playback readiness.
+The observer dispatches `RingingBegan` after playback starts.
 Playback can end through cancellation, shutdown, or failure.
 `MainViewModel` captures `DispatcherQueue.GetForCurrentThread()` at construction and uses it to marshal subscription updates to the UI thread.
 
@@ -157,12 +165,12 @@ CI signs six first-party PE files, consisting of the root launcher and five file
 
 The reducer's transitions live in `src/Alarm.Application/Reducer/AlarmReducer.cs`.
 `src/Alarm.Application/Store/AlarmStore.cs` contains the reducer loop and state subject.
-`src/Alarm.Application/Store/EffectInterpreter.cs` implements atomic begin and end ringing effects.
+`src/Alarm.Application/Store/EffectInterpreter.cs` owns playback startup, cancellation, and volume restoration.
 `src/Alarm.Application/State/AlarmState.cs` defines the three-case closed hierarchy.
 `src/Alarm.Application/Events/AlarmEvent.cs` defines every event the reducer accepts.
 `src/Alarm.Application/Effects/AlarmEffect.cs` defines composite atomic effects.
 `src/Alarm.Application/Runtime/*HostedService.cs` contains the store, effect, and tick loops.
-`src/Alarm.Infrastructure/Audio/AudioPlayer.cs` implements the `PlayUntilCancelledAsync` contract.
+`src/Alarm.Infrastructure/Audio/AudioPlayer.cs` implements the `StartPlayback` session contract.
 `src/Alarm.Infrastructure/Audio/NAudioBackend.cs` manages NAudio device lifetime.
 `src/Alarm.Infrastructure/Volume/CoreAudioVolumeController.cs` caches MMDevice instances.
 `src/Alarm.Presentation/Behaviors/LongPressGestureBehavior.cs` implements long-press input and InsetClip animation.

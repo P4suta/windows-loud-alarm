@@ -93,6 +93,7 @@ The ports in `Alarm.Application/Ports/` define the external dependencies of `Ala
 `IAudioPlayer` exposes `IsPlaying` and returns a `PlaybackSession` from `StartPlayback(source, ct)`.
 The session's `Ready` task settles when playback starts or startup fails.
 Its `Completion` task accounts for every owned worker and device handle.
+Cancellation settles both `Ready` and `Completion`, including cancellation before startup.
 `ISystemVolumeController` exposes `Capture()` and `Apply(snapshot)` for volume snapshots.
 `IAudioFilePicker` opens an asynchronous dialog and returns `Result<UserFile, AlarmError>`.
 `IAlarmStatusPresenter` exposes `Bind(Observable<AlarmState>)` and Show and Exit events.

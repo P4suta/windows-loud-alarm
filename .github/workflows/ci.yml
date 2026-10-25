@@ -4,8 +4,6 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, labeled, unlabeled]
-  merge_group:
-    types: [checks_requested]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -31,12 +29,12 @@ jobs:
         id: scope
         env:
           EVENT_NAME: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.sha }}
         shell: bash
         run: |
           set -euo pipefail
-          case "$EVENT_NAME" in pull_request|merge_group) ;; *) exit 1 ;; esac
+          [[ "$EVENT_NAME" == 'pull_request' ]]
           [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ && "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
           git cat-file -e "${BASE_SHA}^{commit}"
           git cat-file -e "${HEAD_SHA}^{commit}"
@@ -179,9 +177,6 @@ jobs:
             and (if .changes.outputs.docs_only == "true" then .["build-test"].result == "skipped"
                  elif .changes.outputs.docs_only == "false" then .["build-test"].result == "success"
                  else false end)
-            and (if $event == "pull_request" then
-                   .["pr-title"].result == "success" and .["release-gate"].result == "success"
-                 elif $event == "merge_group" then
-                   .["pr-title"].result == "skipped" and .["release-gate"].result == "skipped"
-                 else false end)
+            and $event == "pull_request"
+            and .["pr-title"].result == "success" and .["release-gate"].result == "success"
           ' <<< "$NEEDS"

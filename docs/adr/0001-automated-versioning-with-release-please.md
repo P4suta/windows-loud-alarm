@@ -72,7 +72,7 @@ Action as the sibling repo), hard-gated so a real publish can't ship unsigned. S
 
 ## Verification update on 2026-10-25
 
-Pull requests and merge groups require a validated change scope and whitespace check.
+Pull requests require a validated change scope and whitespace check.
 Only changes to the enumerated documentation files with regular file modes omit the Windows build.
 Other changes require locked restore, strict analyzer builds, `Microsoft.Testing.Platform` tests, and formatting checks.
 Release approval remains mandatory for release pull requests.

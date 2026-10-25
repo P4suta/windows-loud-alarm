@@ -32,7 +32,10 @@ mise x -- just restore
 mise x -- just run
 ```
 
-`mise.toml` declares toolchain versions, `Directory.Packages.props` declares package versions, and `.editorconfig` defines analyzer rules.
+`global.json` declares the .NET software development kit (SDK) version.
+Mise reads that file when selecting and installing the SDK.
+`mise.toml` declares the remaining tool versions.
+`Directory.Packages.props` declares package versions, and `.editorconfig` defines analyzer rules.
 After setup, `mise x -- just bootstrap` installs the configured tools and restores packages.
 The [justfile](../justfile) defines the development commands.
 

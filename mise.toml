@@ -1,15 +1,11 @@
-# Project-local toolchain (per dotfiles policy: project tool versions live in-repo,
-# not in the global mise config). Pinned so CI runners and fresh checkouts don't
-# depend on the developer's global mise.
 [tools]
-dotnet = "10.0.300"
-just = "1.51.0"
-lefthook = "2.1.6"
-typos = "latest"
+just = "1.59.0"
+lefthook = "2.2.2"
+typos = "1.51.1"
 # Drives the SubsetFonts target (uv brings its own Python on demand).
-uv = "latest"
+uv = "0.13.5"
 # Conventional-Commits linter for the commit-msg hook (see committed.toml).
-"cargo:committed" = "1"
+"cargo:committed" = "1.1.11"
 # Lints .github/workflows/*.yml; pinned so workflow edits validate locally.
 "github:rhysd/actionlint" = "1.7.12"
 
@@ -20,5 +16,6 @@ MSBUILDUSESERVER = "1"
 TESTINGPLATFORM_TELEMETRY_OPTOUT = "1"
 
 [settings]
+idiomatic_version_file_enable_tools = ["dotnet"]
 # Fetch cargo: backend tools as prebuilt binaries (no Rust compile on install).
 cargo.binstall = true

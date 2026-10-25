@@ -27,13 +27,11 @@ public class AlarmStoreScenarioTests
         var capturedSnapshot = VolumeSnapshot.Of(0.42f, isMuted: false);
         harness.Volume.CurrentSystemVolume = capturedSnapshot;
 
-        // Arm at 22:00, alarm set for 07:00 — schedule resolves to next-day 07:00.
         var now = new DateTimeOffset(2026, 5, 27, 22, 0, 0, TimeSpan.FromHours(9));
         harness.Time.SetUtcNow(now.UtcDateTime);
         await harness.Store.DispatchAsync(new AlarmEvent.ArmRequested(AlarmTime, AudioSource.SystemDefault.Instance), TestContext.Current.CancellationToken).AsTask();
         await harness.WaitForStateAsync<AlarmState.Armed>().ConfigureAwait(true);
 
-        // Advance to fire time and dispatch a Tick — interpreter should run BeginRinging.
         var fireAt = new DateTimeOffset(2026, 5, 28, 7, 0, 0, TimeSpan.FromHours(9));
         harness.Time.SetUtcNow(fireAt.UtcDateTime);
         await harness.Store.DispatchAsync(new AlarmEvent.Tick(fireAt), TestContext.Current.CancellationToken).AsTask();
@@ -42,7 +40,6 @@ public class AlarmStoreScenarioTests
         harness.Volume.LastApplied.ShouldBe(VolumeSnapshot.Maximum);
         harness.Player.IsPlaying.ShouldBeTrue();
 
-        // Stop — interpreter should restore the captured snapshot.
         await harness.Store.DispatchAsync(AlarmEvent.StopRingingRequested.Instance, TestContext.Current.CancellationToken).AsTask();
         await harness.WaitForStateAsync<AlarmState.Idle>().ConfigureAwait(true);
 
@@ -78,12 +75,42 @@ public class AlarmStoreScenarioTests
 
         var notYet = armedAt.AddHours(1);
         await harness.Store.DispatchAsync(new AlarmEvent.Tick(notYet), TestContext.Current.CancellationToken).AsTask();
-        // Wait for the reducer to actually finish handling the tick instead of polling
-        // on wall-clock time. Pending = 0 means the queue is drained.
         await harness.WaitForIdleAsync().ConfigureAwait(true);
 
         harness.Store.Current.ShouldBeOfType<AlarmState.Armed>();
         harness.Player.PlayCallCount.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task CancelDuringStartup_JoinsAndRestoresWhileArmedStopRemainsIgnored()
+    {
+        var readiness = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var player = new FakeAudioPlayer(readiness.Task);
+        await using var harness = await Harness.StartAsync(player).ConfigureAwait(true);
+        var snapshot = harness.Volume.CurrentSystemVolume;
+        await harness.Store.DispatchAsync(new AlarmEvent.ArmRequested(AlarmTime, AudioSource.SystemDefault.Instance), TestContext.Current.CancellationToken);
+        await harness.WaitForStateAsync<AlarmState.Armed>().ConfigureAwait(true);
+        var schedule = ((AlarmState.Armed)harness.Store.Current).Schedule;
+        harness.Time.SetUtcNow(schedule.FireAt.UtcDateTime);
+        await harness.Store.DispatchAsync(new AlarmEvent.Tick(schedule.FireAt), TestContext.Current.CancellationToken);
+        await player.StartRequested.WaitAsync(TestContext.Current.CancellationToken);
+
+        await harness.Store.DispatchAsync(AlarmEvent.StopRingingRequested.Instance, TestContext.Current.CancellationToken);
+        await harness.WaitForIdleAsync().ConfigureAwait(true);
+        harness.Store.Current.ShouldBeOfType<AlarmState.Armed>();
+        player.IsPlaying.ShouldBeFalse();
+
+        await harness.Store.DispatchAsync(AlarmEvent.CancelRequested.Instance, TestContext.Current.CancellationToken);
+        await harness.Volume.Restored.WaitAsync(TestContext.Current.CancellationToken);
+        await player.Stopped.WaitAsync(TestContext.Current.CancellationToken);
+        await harness.WaitForStateAsync<AlarmState.Idle>().ConfigureAwait(true);
+        harness.Volume.CurrentSystemVolume.ShouldBe(snapshot);
+        harness.Volume.CaptureCount.ShouldBe(1);
+        harness.Volume.ApplyCount.ShouldBe(2);
+
+        readiness.TrySetResult();
+        player.IsPlaying.ShouldBeFalse();
+        harness.Store.Current.ShouldBeOfType<AlarmState.Idle>();
     }
 
     private sealed class Harness : IAsyncDisposable
@@ -97,16 +124,14 @@ public class AlarmStoreScenarioTests
         public required Task EffectLoop { get; init; }
         public required CancellationTokenSource Cts { get; init; }
 
-        public static async Task<Harness> StartAsync()
+        public static async Task<Harness> StartAsync(FakeAudioPlayer? audioPlayer = null)
         {
-            var player = new FakeAudioPlayer();
+            var player = audioPlayer ?? new FakeAudioPlayer();
             var volume = new FakeVolumeController();
             var time = new FakeTimeProvider();
             var store = new AlarmStore(time, NullLogger<AlarmStore>.Instance);
             var interpreter = new EffectInterpreter(store, player, volume, time, NullLogger<EffectInterpreter>.Instance);
             var cts = new CancellationTokenSource();
-            // Start each loop in the test's own context so the awaiting on dispose stays
-            // within the same scheduler — keeps VSTHRD003 happy.
             var storeLoop = store.RunAsync(cts.Token);
             var effectLoop = interpreter.RunAsync(cts.Token);
             await Task.Yield();

@@ -17,7 +17,7 @@
     <!-- MVVM -->
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <!-- Audio -->
-    <PackageVersion Include="NAudio" Version="2.3.0" />
+    <PackageVersion Include="NAudio" Version="3.3.0" />
     <!-- System tray -->
     <PackageVersion Include="H.NotifyIcon.WinUI" Version="2.4.1" />
     <!-- Analyzers (applied via Directory.Build.props to every project) -->

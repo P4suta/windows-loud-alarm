@@ -15,7 +15,7 @@ permissions:
 jobs:
   changes:
     name: Verify change scope and whitespace
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     outputs:
       docs_only: ${{ steps.scope.outputs.docs_only }}
@@ -160,7 +160,7 @@ jobs:
     name: required
     if: always()
     needs: [changes, build-test, pr-title, release-gate]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}
     steps:

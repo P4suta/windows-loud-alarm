@@ -101,13 +101,13 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.REF }}
 
       # Provisions the pinned toolchain (dotnet / just) from mise.toml so the shipped
       # artifact is built on the exact pins CI and local use.
-      - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           install: true
 
@@ -123,7 +123,7 @@ jobs:
           mise exec -- dotnet CycloneDX src/Alarm.Presentation/Alarm.Presentation.csproj -o publish/sbom -F Json -fn Alarm.cdx.json
 
       - name: Upload unsigned bundle
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist
           path: publish/dist/Alarm
@@ -131,7 +131,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload SBOM
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: sbom
           path: publish/sbom/Alarm.cdx.json
@@ -156,12 +156,12 @@ jobs:
       # by the credential_id, so gate on its presence.
       HAVE_SIGNING: ${{ vars.DOPPLER_SIGN_WINDOWS_IDENTITY_ID != '' }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.REF }}
 
       - name: Download unsigned bundle
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: dist
           path: publish/dist/Alarm
@@ -266,7 +266,7 @@ jobs:
         run: echo "::warning::Signing secrets absent - the bundle is UNSIGNED (a real publish will FAIL at the publish gate). See docs/SIGNING.md to enable."
 
       - name: Upload signed bundle
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist-signed
           path: publish/dist/Alarm
@@ -292,16 +292,16 @@ jobs:
       attestations: write # write build-provenance + SBOM attestations
     steps:
       # The repo is needed for `just package` + the verify composite action.
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.REF }}
 
-      - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           install: true
 
       - name: Download signed bundle
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: dist-signed
           path: publish/dist/Alarm
@@ -317,7 +317,7 @@ jobs:
           signer-subject-contains: ${{ env.SIGNER_SUBJECT_CONTAINS }}
 
       - name: Download SBOM
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: sbom
           path: publish/sbom
@@ -330,14 +330,14 @@ jobs:
       # Build provenance + SBOM attestations for the published artifacts. Keyless via
       # the workflow's OIDC token (no stored secrets).
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             publish/Alarm-*-win-x64.zip
             publish/SHA256SUMS.txt
 
       - name: Attest SBOM
-        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: publish/Alarm-*-win-x64.zip
           sbom-path: publish/sbom/Alarm.cdx.json
@@ -348,7 +348,7 @@ jobs:
       # is what creates the vX.Y.Z tag. `draft` is intentionally omitted so the action
       # publishes after upload; the notes are release-please's, so we don't regenerate.
       - name: Publish the draft release with the signed assets
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           tag_name: ${{ env.TAG }}
           files: |
